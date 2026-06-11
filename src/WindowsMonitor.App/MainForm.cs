@@ -1365,17 +1365,11 @@ public sealed class MainForm : Form
               $"授权ID：{license.LicenseId}{Environment.NewLine}" +
               $"授权类型：{LicenseTypeText(license.LicenseType)}{Environment.NewLine}" +
               $"版本：{license.Edition}{Environment.NewLine}" +
-              $"过期时间：{license.ExpiresAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "永久"}{Environment.NewLine}" +
-              $"最近服务端时间：{license.LastServerTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "未校验"}{Environment.NewLine}" +
-              $"已远程校验：{BoolText(validation?.RemoteChecked == true)}{Environment.NewLine}" +
-              $"远程不可用：{BoolText(validation?.RemoteUnavailable == true)}{Environment.NewLine}" +
+              $"授权时间：{license.IssuedAt:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}" +
+              $"到期日期：{license.ExpiresAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "永久"}{Environment.NewLine}" +
+              $"最近校验：{license.LastServerTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "本地校验"}{Environment.NewLine}" +
               $"消息：{validation?.Message}";
-        var endpoint = string.IsNullOrWhiteSpace(BuildMetadata.LicenseValidationUrl)
-            ? "未配置"
-            : BuildMetadata.LicenseValidationUrl;
-        return $"产品：{BuildMetadata.DisplayName}{Environment.NewLine}" +
-               $"机器码：{Environment.NewLine}{machineCode}{Environment.NewLine}{Environment.NewLine}" +
-               $"远程校验地址：{endpoint}{Environment.NewLine}{Environment.NewLine}" +
+        return $"机器码：{Environment.NewLine}{machineCode}{Environment.NewLine}{Environment.NewLine}" +
                status;
     }
 
