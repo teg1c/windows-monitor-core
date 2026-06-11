@@ -78,8 +78,10 @@ public sealed class RuleEditorForm : Form
         _ruleType.Items.AddRange(new object[] { "窗口标题", "文字识别", "任务栏闪烁" });
         _ocrTarget.Items.AddRange(new object[] { "整个桌面", "窗口" });
         _ruleType.SelectedIndexChanged += (_, _) => ScheduleVisibilityUpdate();
+        _ruleType.SelectedValueChanged += (_, _) => ScheduleVisibilityUpdate();
         _ruleType.TextChanged += (_, _) => ScheduleVisibilityUpdate();
         _ocrTarget.SelectedIndexChanged += (_, _) => ScheduleVisibilityUpdate();
+        _ocrTarget.SelectedValueChanged += (_, _) => ScheduleVisibilityUpdate();
         _ocrTarget.TextChanged += (_, _) => ScheduleVisibilityUpdate();
         _toast.CheckedChanged += (_, _) => ScheduleVisibilityUpdate();
         _webhook.CheckedChanged += (_, _) => ScheduleVisibilityUpdate();
@@ -289,6 +291,7 @@ public sealed class RuleEditorForm : Form
 
     private void SaveRuleAndClose()
     {
+        UpdateVisibility();
         var ruleType = SelectedRuleType();
         var processName = string.IsNullOrWhiteSpace(_processName.Text) ? null : _processName.Text.Trim();
         var windowTitlePattern = string.IsNullOrWhiteSpace(_windowTitle.Text) ? null : _windowTitle.Text.Trim();
@@ -401,7 +404,7 @@ public sealed class RuleEditorForm : Form
 
     private MonitorRuleType SelectedRuleType()
     {
-        var text = _ruleType.Text?.Trim();
+        var text = CurrentSelectText(_ruleType);
         if (text is "文字识别" or "OCR识别")
         {
             return MonitorRuleType.Ocr;
@@ -439,7 +442,7 @@ public sealed class RuleEditorForm : Form
 
     private OcrTargetType SelectedOcrTarget()
     {
-        var text = _ocrTarget.Text?.Trim();
+        var text = CurrentSelectText(_ocrTarget);
         if (text == "窗口")
         {
             return OcrTargetType.Window;
@@ -512,6 +515,30 @@ public sealed class RuleEditorForm : Form
                 return;
             }
         }
+    }
+
+    private static string CurrentSelectText(AntSelect select)
+    {
+        if (select.SelectedValue is { } selectedValue)
+        {
+            var value = selectedValue.ToString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(select.Text))
+        {
+            return select.Text.Trim();
+        }
+
+        if (select.SelectedIndex >= 0 && select.SelectedIndex < select.Items.Count)
+        {
+            return select.Items[select.SelectedIndex]?.ToString()?.Trim() ?? string.Empty;
+        }
+
+        return string.Empty;
     }
 
     private void AddRow(string key, string label, Control editor, int height)

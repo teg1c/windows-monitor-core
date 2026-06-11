@@ -125,6 +125,7 @@ public sealed class MainForm : Form
         {
             StartConfiguredTaskbarRules();
             await ShowDashboardAsync();
+            await ScanEnabledRulesOnceAsync("启动后初始扫描");
         }
         else
         {
@@ -342,10 +343,20 @@ public sealed class MainForm : Form
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
             Margin = new Padding(0, 0, 16, 0)
         };
-        _monitorToggleButton.Click += (_, _) =>
+        _monitorToggleButton.Click += async (_, _) =>
         {
             _monitoringEnabled = !_monitoringEnabled;
             RefreshMonitorToggle();
+            AppLogger.Info($"监听状态已切换。monitoring={_monitoringEnabled}");
+            if (_monitoringEnabled)
+            {
+                StartConfiguredTaskbarRules();
+                await ScanEnabledRulesOnceAsync("手动开始监听");
+            }
+            else
+            {
+                _taskbarFlashDetector.Stop();
+            }
         };
         RefreshMonitorToggle();
         top.Controls.Add(_monitorToggleButton);
@@ -716,6 +727,26 @@ public sealed class MainForm : Form
         await ScanWindowTitlesAsync();
     }
 
+    private async Task ScanEnabledRulesOnceAsync(string reason)
+    {
+        if (!IsLicenseUsable)
+        {
+            AppLogger.Warning($"立即扫描跳过：授权不可用。reason={reason}");
+            return;
+        }
+
+        if (!_monitoringEnabled)
+        {
+            AppLogger.Warning($"立即扫描跳过：监听已暂停。reason={reason}");
+            return;
+        }
+
+        AppLogger.Info($"立即扫描开始。reason={reason}");
+        await ScanWindowTitlesAsync(force: true);
+        await RunOcrScanAsync(force: true, showResult: false);
+        AppLogger.Info($"立即扫描完成。reason={reason}");
+    }
+
     private async Task ScanWindowTitlesAsync(bool force = false)
     {
         if (!IsLicenseUsable)
@@ -746,7 +777,7 @@ public sealed class MainForm : Form
         var rules = (_rules.Count == 0 ? await _repository.GetRulesAsync() : _rules)
             .Where(rule => rule.RuleType == MonitorRuleType.WindowTitle)
             .ToArray();
-        AppLogger.Debug($"窗口标题扫描开始。windows={windows.Count}, rules={rules.Length}, enabledRules={rules.Count(rule => rule.Enabled)}");
+        AppLogger.Debug($"窗口标题扫描开始。windows={windows.Count}, rules={rules.Length}, enabledRules={rules.Count(rule => rule.Enabled)}, ruleDetails={RuleScanDetails(rules)}");
         var hitCount = 0;
         var hitRuleIds = new HashSet<Guid>();
         foreach (var window in windows)
@@ -762,6 +793,10 @@ public sealed class MainForm : Form
                 }
             }
         }
+        if (hitCount == 0 && rules.Any(rule => rule.Enabled))
+        {
+            AppLogger.Debug($"窗口标题本轮未命中。sampleTitles={string.Join(" || ", windows.Take(5).Select(window => $"{window.ProcessName}:{window.Title}"))}");
+        }
         ResetUnmatchedRules(rules, hitRuleIds);
 
         if (force)
@@ -769,7 +804,7 @@ public sealed class MainForm : Form
             SetStatus($"窗口标题扫描完成。窗口数：{windows.Count}，命中：{hitCount}。");
         }
 
-        if (DateTimeOffset.Now - _lastOcrScan >= TimeSpan.FromSeconds(15))
+        if (!force && DateTimeOffset.Now - _lastOcrScan >= TimeSpan.FromSeconds(15))
         {
             await RunOcrScanAsync(force: false, showResult: false);
         }
@@ -806,7 +841,7 @@ public sealed class MainForm : Form
             var rules = (_rules.Count == 0 ? await _repository.GetRulesAsync() : _rules)
                 .Where(rule => rule.Enabled && rule.RuleType == MonitorRuleType.Ocr)
                 .ToArray();
-            AppLogger.Debug($"文字识别扫描开始。rules={rules.Length}, force={force}, showResult={showResult}");
+            AppLogger.Debug($"文字识别扫描开始。rules={rules.Length}, force={force}, showResult={showResult}, ruleDetails={RuleScanDetails(rules)}");
             var hitRuleIds = new HashSet<Guid>();
             foreach (var rule in rules)
             {
@@ -838,11 +873,18 @@ public sealed class MainForm : Form
                         DateTimeOffset.Now)
                     : null;
                 var input = new MonitorInput(MonitorContentType.OcrText, ocr.Text, window, source, DateTimeOffset.Now);
+                var matched = false;
                 foreach (var match in _ruleMatcher.Match([rule], input))
                 {
+                    matched = true;
                     hitRuleIds.Add(match.Rule.Id);
                     AppLogger.Info($"文字识别命中。rule={match.Rule.Name}, keyword={match.Keyword}, source={source}");
                     if (await SaveAndNotifyMatchAsync(match)) hits++;
+                }
+
+                if (!matched)
+                {
+                    AppLogger.Debug($"文字识别未命中关键词。rule={rule.Name}, keywords={string.Join("|", rule.Keywords)}, snippet={LogSnippet(ocr.Text)}");
                 }
             }
             ResetUnmatchedRules(rules, hitRuleIds);
@@ -1047,7 +1089,7 @@ public sealed class MainForm : Form
             TableText(RuleKeywordsText(rule)),
             TableText(RuleChannelsText(rule)),
             TableText($"{rule.MaxConsecutiveNotifications}x / {rule.CooldownSeconds}s"),
-            new AntCellButton("toggle", rule.Enabled ? "停用" : "启用", rule.Enabled ? AntdUI.TTypeMini.Warn : AntdUI.TTypeMini.Primary) { Radius = 6 })).ToList();
+            new AntCellButton("toggle", rule.Enabled ? "关闭规则" : "开启规则", rule.Enabled ? AntdUI.TTypeMini.Warn : AntdUI.TTypeMini.Primary) { Radius = 6 })).ToList();
         _rulesGrid.DataSource = _ruleRows;
         if (_selectedRuleId is not null && _ruleRows.All(row => row.Rule.Id != _selectedRuleId.Value))
         {
@@ -1089,6 +1131,25 @@ public sealed class MainForm : Form
         return rule.NotificationChannels.Count > 0
             ? string.Join(", ", rule.NotificationChannels.Select(ChannelText))
             : "未配置";
+    }
+
+    private static string RuleScanDetails(IEnumerable<MonitorRule> rules)
+    {
+        return string.Join("; ", rules.Select(rule =>
+            $"{rule.Name}[enabled={rule.Enabled}, keywords={string.Join("|", rule.Keywords)}]"));
+    }
+
+    private static string LogSnippet(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        var normalized = text.Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Trim();
+        return normalized.Length <= 220 ? normalized : normalized[..220];
     }
 
     private static AntCellText TableText(string text)
