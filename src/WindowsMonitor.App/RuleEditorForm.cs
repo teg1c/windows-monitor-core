@@ -1,5 +1,6 @@
 using WindowsMonitor.Core.Models;
 using WindowsMonitor.Core.Services;
+using WindowsMonitor.Infrastructure;
 using System.Text.Json;
 using AntButton = AntdUI.Button;
 using AntCheckbox = AntdUI.Checkbox;
@@ -263,18 +264,42 @@ public sealed class RuleEditorForm : Form
             return;
         }
 
-        using var bitmap = await CaptureSelectedOcrTargetAsync();
-        if (bitmap is null)
+        var hideForDesktopCapture = SelectedOcrTarget() == OcrTargetType.Desktop;
+        try
         {
-            MessageBox.Show(this, "请先选择识别窗口。", "文字识别预览", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
+            if (hideForDesktopCapture)
+            {
+                Hide();
+                await Task.Delay(180);
+            }
 
-        using var picker = new OcrRegionPickerForm(bitmap, _ocrRegion);
-        if (picker.ShowDialog(this) == DialogResult.OK)
+            using var bitmap = await CaptureSelectedOcrTargetAsync();
+            if (bitmap is null)
+            {
+                MessageBox.Show(this, "请先选择识别窗口。", "文字识别预览", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            AppLogger.Info($"打开文字识别区域预览。target={SelectedOcrTarget()}, image={bitmap.Width}x{bitmap.Height}");
+            using var picker = new OcrRegionPickerForm(bitmap, _ocrRegion);
+            if (picker.ShowDialog(hideForDesktopCapture ? null : this) == DialogResult.OK)
+            {
+                _ocrRegion = picker.SelectedRegion;
+                UpdateRegionText();
+            }
+        }
+        catch (Exception ex)
         {
-            _ocrRegion = picker.SelectedRegion;
-            UpdateRegionText();
+            AppLogger.Error("打开文字识别区域预览失败。", ex);
+            MessageBox.Show(this, $"打开文字识别预览失败：{ex.Message}", "文字识别预览", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (hideForDesktopCapture && !IsDisposed)
+            {
+                Show();
+                Activate();
+            }
         }
     }
 

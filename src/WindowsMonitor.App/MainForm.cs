@@ -985,66 +985,89 @@ public sealed class MainForm : Form
         return ok;
     }
 
-    private async void OnTaskbarFlashDetected(object? sender, TaskbarFlashEvent flashEvent)
+    private void OnTaskbarFlashDetected(object? sender, TaskbarFlashEvent flashEvent)
     {
-        if (!IsLicenseUsable)
+        if (IsDisposed)
         {
-            AppLogger.Debug("任务栏闪烁事件跳过：授权不可用。");
             return;
         }
 
-        AppLogger.Info($"收到任务栏闪烁事件。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}, method={flashEvent.DetectionMethod}");
-
-        var rules = _rules
-            .Where(rule =>
-                rule.Enabled &&
-                rule.RuleType == MonitorRuleType.TaskbarFlash &&
-                (string.IsNullOrWhiteSpace(rule.ProcessName) || string.Equals(rule.ProcessName, flashEvent.ProcessName, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrWhiteSpace(rule.WindowTitlePattern) || (flashEvent.WindowTitle?.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase) ?? false)))
-            .ToArray();
-
-        if (rules.Length == 0)
+        if (InvokeRequired)
         {
-            AppLogger.Debug($"任务栏闪烁未匹配规则。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}");
+            BeginInvoke((System.Windows.Forms.MethodInvoker)(() => OnTaskbarFlashDetected(sender, flashEvent)));
             return;
         }
 
-        foreach (var rule in rules)
+        _ = HandleTaskbarFlashDetectedAsync(flashEvent);
+    }
+
+    private async Task HandleTaskbarFlashDetectedAsync(TaskbarFlashEvent flashEvent)
+    {
+        try
         {
-            var pending = new MonitorEvent
+            if (!IsLicenseUsable)
             {
-                RuleId = rule.Id,
-                RuleName = rule.Name,
-                HitType = MonitorContentType.TaskbarFlash,
-                Keyword = "闪烁",
-                WindowTitle = flashEvent.WindowTitle,
-                ProcessName = flashEvent.ProcessName,
-                TextSnippet = $"{flashEvent.ProcessName} 发生任务栏闪烁，检测方式：{flashEvent.DetectionMethod}",
-                NotificationStatus = NotificationStatus.Pending,
-                OccurredAt = flashEvent.OccurredAt
-            };
-            if (_cooldown.Evaluate(pending, rule.CooldownSeconds) == NotificationStatus.CooldownSkipped)
-            {
-                AppLogger.Debug($"任务栏闪烁跳过：冷却中。rule={rule.Name}");
-                continue;
+                AppLogger.Debug("任务栏闪烁事件跳过：授权不可用。");
+                return;
             }
 
-            ResetQuietFlashRule(rule, flashEvent.OccurredAt);
-            if (!CanSendForConsecutiveHit(rule, pending.OccurredAt))
+            AppLogger.Info($"收到任务栏闪烁事件。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}, method={flashEvent.DetectionMethod}");
+
+            var rules = _rules
+                .Where(rule =>
+                    rule.Enabled &&
+                    rule.RuleType == MonitorRuleType.TaskbarFlash &&
+                    (string.IsNullOrWhiteSpace(rule.ProcessName) || string.Equals(rule.ProcessName, flashEvent.ProcessName, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrWhiteSpace(rule.WindowTitlePattern) || (flashEvent.WindowTitle?.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase) ?? false)))
+                .ToArray();
+
+            if (rules.Length == 0)
             {
-                AppLogger.Debug($"任务栏闪烁跳过：连续发送上限。rule={rule.Name}, limit={rule.MaxConsecutiveNotifications}");
-                continue;
+                AppLogger.Debug($"任务栏闪烁未匹配规则。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}");
+                return;
             }
 
-            var notificationSent = await SendNotificationsAsync(pending, rule);
-            await _repository.AddEventAsync(pending with
+            foreach (var rule in rules)
             {
-                NotificationStatus = notificationSent ? NotificationStatus.Sent : NotificationStatus.Failed
-            });
-            AppLogger.Info($"任务栏闪烁事件已记录。rule={rule.Name}, notificationSent={notificationSent}");
+                var pending = new MonitorEvent
+                {
+                    RuleId = rule.Id,
+                    RuleName = rule.Name,
+                    HitType = MonitorContentType.TaskbarFlash,
+                    Keyword = "闪烁",
+                    WindowTitle = flashEvent.WindowTitle,
+                    ProcessName = flashEvent.ProcessName,
+                    TextSnippet = $"{flashEvent.ProcessName} 发生任务栏闪烁，检测方式：{flashEvent.DetectionMethod}",
+                    NotificationStatus = NotificationStatus.Pending,
+                    OccurredAt = flashEvent.OccurredAt
+                };
+                if (_cooldown.Evaluate(pending, rule.CooldownSeconds) == NotificationStatus.CooldownSkipped)
+                {
+                    AppLogger.Debug($"任务栏闪烁跳过：冷却中。rule={rule.Name}");
+                    continue;
+                }
+
+                ResetQuietFlashRule(rule, flashEvent.OccurredAt);
+                if (!CanSendForConsecutiveHit(rule, pending.OccurredAt))
+                {
+                    AppLogger.Debug($"任务栏闪烁跳过：连续发送上限。rule={rule.Name}, limit={rule.MaxConsecutiveNotifications}");
+                    continue;
+                }
+
+                var notificationSent = await SendNotificationsAsync(pending, rule);
+                await _repository.AddEventAsync(pending with
+                {
+                    NotificationStatus = notificationSent ? NotificationStatus.Sent : NotificationStatus.Failed
+                });
+                AppLogger.Info($"任务栏闪烁事件已记录。rule={rule.Name}, notificationSent={notificationSent}");
+            }
+
+            SetStatus($"检测到任务栏闪烁：{flashEvent.ProcessName}");
         }
-
-        SetStatus($"检测到任务栏闪烁：{flashEvent.ProcessName}");
+        catch (Exception ex)
+        {
+            AppLogger.Error($"任务栏闪烁事件处理失败。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}", ex);
+        }
     }
 
     private async Task LoadRulesAsync()
@@ -1066,6 +1089,7 @@ public sealed class MainForm : Form
             .Where(rule => rule.Enabled && rule.RuleType == MonitorRuleType.TaskbarFlash && !string.IsNullOrWhiteSpace(rule.ProcessName))
             .Select(rule => new TaskbarFlashTarget(rule.ProcessName!, rule.WindowTitlePattern, rule.CooldownSeconds))
             .ToArray();
+        AppLogger.Info($"任务栏闪烁规则检查。total={_rules.Count(rule => rule.RuleType == MonitorRuleType.TaskbarFlash)}, enabled={_rules.Count(rule => rule.Enabled && rule.RuleType == MonitorRuleType.TaskbarFlash)}, targets={targets.Length}");
         if (targets.Length > 0)
         {
             _taskbarFlashDetector.Start(targets);
