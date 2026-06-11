@@ -60,6 +60,8 @@ public sealed class MainForm : Form
     private bool _monitoringEnabled = true;
     private DateTimeOffset _lastOcrScan = DateTimeOffset.MinValue;
     private IReadOnlyList<MonitorRule> _rules = [];
+    private IReadOnlyList<RuleRow> _ruleRows = [];
+    private Guid? _selectedRuleId;
     private readonly Dictionary<Guid, HitState> _hitStates = [];
     private LicenseValidationResult? _licenseValidation;
     private string _machineCode = string.Empty;
@@ -345,10 +347,18 @@ public sealed class MainForm : Form
         _rulesGrid = RulesTable();
         _rulesGrid.Dock = DockStyle.Fill;
         _rulesGrid.ContextMenuStrip = BuildRuleContextMenu();
+        _rulesGrid.CellClick += (_, e) =>
+        {
+            if (e.Record is RuleRow row)
+            {
+                SelectRule(row.Rule);
+            }
+        };
         _rulesGrid.CellDoubleClick += async (_, e) =>
         {
             if (e.Record is RuleRow row)
             {
+                SelectRule(row.Rule);
                 await EditRuleAsync(row.Rule);
             }
         };
@@ -356,6 +366,7 @@ public sealed class MainForm : Form
         {
             if (e.Record is RuleRow row)
             {
+                SelectRule(row.Rule);
                 await ToggleRuleAsync(row.Rule);
             }
         };
@@ -885,7 +896,7 @@ public sealed class MainForm : Form
     private void FillRulesGrid()
     {
         if (_rulesGrid is null) return;
-        _rulesGrid.DataSource = _rules.Select(rule => new RuleRow(
+        _ruleRows = _rules.Select(rule => new RuleRow(
             rule,
             rule.Enabled ? "启用" : "停用",
             RuleTypeText(rule.RuleType),
@@ -895,6 +906,11 @@ public sealed class MainForm : Form
             string.Join(", ", rule.NotificationChannels.Select(ChannelText)),
             $"{rule.MaxConsecutiveNotifications}x / {rule.CooldownSeconds}s",
             new AntCellButton("toggle", rule.Enabled ? "停用" : "启用", rule.Enabled ? AntdUI.TTypeMini.Warn : AntdUI.TTypeMini.Primary) { Radius = 6 })).ToList();
+        _rulesGrid.DataSource = _ruleRows;
+        if (_selectedRuleId is not null && _ruleRows.All(row => row.Rule.Id != _selectedRuleId.Value))
+        {
+            _selectedRuleId = null;
+        }
     }
 
     private static string RuleTargetText(MonitorRule rule)
@@ -1119,12 +1135,38 @@ public sealed class MainForm : Form
 
     private MonitorRule? SelectedRule()
     {
+        if (_selectedRuleId is { } selectedRuleId)
+        {
+            var selected = _rules.FirstOrDefault(rule => rule.Id == selectedRuleId);
+            if (selected is not null)
+            {
+                return selected;
+            }
+        }
+
         if (_rulesGrid?.FocusedRow is RuleRow row)
         {
+            SelectRule(row.Rule);
             return row.Rule;
         }
 
+        if (_rulesGrid is not null && _rulesGrid.SelectedIndex > 0)
+        {
+            var index = _rulesGrid.SelectedIndex - 1;
+            if (index >= 0 && index < _ruleRows.Count)
+            {
+                var selected = _ruleRows[index].Rule;
+                SelectRule(selected);
+                return selected;
+            }
+        }
+
         return null;
+    }
+
+    private void SelectRule(MonitorRule rule)
+    {
+        _selectedRuleId = rule.Id;
     }
 
     private async Task SaveSelectedFlashRulesAsync()
