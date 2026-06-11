@@ -947,7 +947,7 @@ public sealed class MainForm : Form
             rule.Name,
             RuleTargetText(rule),
             RuleKeywordsText(rule),
-            string.Join(", ", rule.NotificationChannels.Select(ChannelText)),
+            RuleChannelsText(rule),
             $"{rule.MaxConsecutiveNotifications}x / {rule.CooldownSeconds}s",
             new AntCellButton("toggle", rule.Enabled ? "停用" : "启用", rule.Enabled ? AntdUI.TTypeMini.Warn : AntdUI.TTypeMini.Primary) { Radius = 6 })).ToList();
         _rulesGrid.DataSource = _ruleRows;
@@ -984,6 +984,13 @@ public sealed class MainForm : Form
         }
 
         return rule.RuleType == MonitorRuleType.TaskbarFlash ? "任务栏闪烁" : "";
+    }
+
+    private static string RuleChannelsText(MonitorRule rule)
+    {
+        return rule.NotificationChannels.Count > 0
+            ? string.Join(", ", rule.NotificationChannels.Select(ChannelText))
+            : "未配置";
     }
 
     private static string RuleTypeText(MonitorRuleType type)
@@ -1652,8 +1659,8 @@ public sealed class MainForm : Form
         table.Columns.Add(new AntColumn(nameof(RuleRow.Type), "类型") { Width = "100" });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Name), "名称") { Width = "150" });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Target), "目标") { Width = "170", Ellipsis = true });
-        table.Columns.Add(new AntColumn(nameof(RuleRow.Keywords), "关键词") { Width = "160", Ellipsis = true });
-        table.Columns.Add(new AntColumn(nameof(RuleRow.Channels), "通知渠道") { Width = "170", Ellipsis = true });
+        table.Columns.Add(new AntColumn(nameof(RuleRow.KeywordText), "关键词") { Width = "160", Ellipsis = true });
+        table.Columns.Add(new AntColumn(nameof(RuleRow.ChannelText), "通知渠道") { Width = "170", Ellipsis = true });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Limit), "限制") { Width = "95" });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Action), "操作") { Width = "104" });
         return table;
@@ -1803,8 +1810,8 @@ public sealed class MainForm : Form
         string Type,
         string Name,
         string Target,
-        string Keywords,
-        string Channels,
+        string KeywordText,
+        string ChannelText,
         string Limit,
         AntCellButton Action);
 
