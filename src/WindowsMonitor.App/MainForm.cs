@@ -35,6 +35,7 @@ public sealed class MainForm : Form
     private readonly RuleMatcher _ruleMatcher = new();
     private readonly EventCooldown _cooldown = new();
     private readonly System.Windows.Forms.Timer _monitorTimer;
+    private readonly System.Windows.Forms.Timer _pulseTimer;
     private readonly NotifyIcon _notifyIcon;
     private readonly ILicenseService _licenseService;
     private readonly GitHubReleaseUpdateService _updateService;
@@ -53,9 +54,11 @@ public sealed class MainForm : Form
     private AntInput? _updateOutput;
     private AntInput? _licenseOutput;
     private AntInput? _licenseCodeInput;
+    private AntButton? _monitorToggleButton;
 
     private bool _initialized;
     private bool _monitoringEnabled = true;
+    private bool _pulseOn;
     private DateTimeOffset _lastOcrScan = DateTimeOffset.MinValue;
     private IReadOnlyList<MonitorRule> _rules = [];
     private IReadOnlyList<RuleRow> _ruleRows = [];
@@ -87,6 +90,13 @@ public sealed class MainForm : Form
 
         _monitorTimer = new System.Windows.Forms.Timer { Interval = 3000 };
         _monitorTimer.Tick += async (_, _) => await MonitorTickAsync();
+        _pulseTimer = new System.Windows.Forms.Timer { Interval = 700 };
+        _pulseTimer.Tick += (_, _) =>
+        {
+            _pulseOn = !_pulseOn;
+            RefreshMonitorToggle();
+        };
+        _pulseTimer.Start();
         _licenseTimer = new System.Windows.Forms.Timer { Interval = 60 * 60 * 1000 };
         _licenseTimer.Tick += async (_, _) => await ValidateLicenseAsync(forceRemoteCheck: true);
         _taskbarFlashDetector.FlashDetected += OnTaskbarFlashDetected;
@@ -139,7 +149,7 @@ public sealed class MainForm : Form
             Padding = new Padding(12),
             Radius = 0
         };
-        nav.Controls.Add(new AntLabel
+        var brand = new AntButton
         {
             Text = BuildMetadata.DisplayName,
             ForeColor = Color.White,
@@ -148,8 +158,21 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             Height = 54,
             Padding = new Padding(6, 8, 0, 0),
-            TextAlign = ContentAlignment.MiddleLeft
-        });
+            Radius = 8,
+            Type = AntdUI.TTypeMini.Default
+        };
+        brand.Click += async (_, _) =>
+        {
+            if (!IsLicenseUsable)
+            {
+                await ShowLicenseAsync();
+                SetStatus("需要有效授权，监听功能已锁定。");
+                return;
+            }
+
+            await ShowDashboardAsync();
+        };
+        nav.Controls.Add(brand);
 
         var menu = new AntMenu
         {
@@ -239,6 +262,7 @@ public sealed class MainForm : Form
     private void SetPage(string pageTitle)
     {
         _title.Text = pageTitle;
+        _monitorToggleButton = null;
         _content.Controls.Clear();
     }
 
@@ -290,32 +314,37 @@ public sealed class MainForm : Form
     private async Task ShowDashboardAsync()
     {
         SetPage("控制台");
-        var windows = _windowInventory.GetVisibleWindows();
         var events = await _repository.GetRecentEventsAsync(20);
 
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, BackColor = Color.White };
-        var toggle = Button(_monitoringEnabled ? "暂停监听" : "开始监听", 110);
-        toggle.Type = AntdUI.TTypeMini.Default;
-        toggle.Click += (_, _) =>
+        var top = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 116,
+            BackColor = Color.White,
+            Padding = new Padding(8, 4, 0, 8)
+        };
+        _monitorToggleButton = new AntButton
+        {
+            Width = 96,
+            Height = 96,
+            Radius = 48,
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            Margin = new Padding(0, 0, 16, 0)
+        };
+        _monitorToggleButton.Click += (_, _) =>
         {
             _monitoringEnabled = !_monitoringEnabled;
-            toggle.Text = _monitoringEnabled ? "暂停监听" : "开始监听";
-            SetStatus(_monitoringEnabled ? "监听已开启。" : "监听已暂停。");
+            RefreshMonitorToggle();
         };
-        var scanTitle = Button("扫描标题", 100);
-        scanTitle.Click += async (_, _) => await ScanWindowTitlesAsync(force: true);
-        var scanOcr = Button("运行识别", 100);
-        scanOcr.Click += async (_, _) => await RunOcrScanAsync(force: true, showResult: true);
-        top.Controls.Add(toggle);
-        top.Controls.Add(scanTitle);
-        top.Controls.Add(scanOcr);
+        RefreshMonitorToggle();
+        top.Controls.Add(_monitorToggleButton);
 
-        var metrics = new TableLayoutPanel { Dock = DockStyle.Top, Height = 110, ColumnCount = 4, Padding = new Padding(0, 0, 0, 12) };
-        for (var i = 0; i < 4; i++) metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        metrics.Controls.Add(Metric("状态", _monitoringEnabled ? "运行中" : "已暂停"), 0, 0);
-        metrics.Controls.Add(Metric("可见窗口", windows.Count.ToString()), 1, 0);
-        metrics.Controls.Add(Metric("规则数量", _rules.Count.ToString()), 2, 0);
-        metrics.Controls.Add(Metric("最近事件", events.Count.ToString()), 3, 0);
+        var enabledRuleCount = _rules.Count(rule => rule.Enabled);
+        var metrics = new TableLayoutPanel { Dock = DockStyle.Top, Height = 110, ColumnCount = 3, Padding = new Padding(0, 0, 0, 12) };
+        for (var i = 0; i < 3; i++) metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
+        metrics.Controls.Add(Metric("开启规则", enabledRuleCount.ToString()), 0, 0);
+        metrics.Controls.Add(Metric("规则数量", _rules.Count.ToString()), 1, 0);
+        metrics.Controls.Add(Metric("最近事件", events.Count.ToString()), 2, 0);
 
         _eventsGrid = EventTable();
         _eventsGrid.Dock = DockStyle.Fill;
@@ -1648,12 +1677,38 @@ public sealed class MainForm : Form
         _statusText.Text = text;
     }
 
+    private void RefreshMonitorToggle()
+    {
+        if (_monitorToggleButton is null || _monitorToggleButton.IsDisposed)
+        {
+            return;
+        }
+
+        if (_monitoringEnabled)
+        {
+            _monitorToggleButton.Text = _pulseOn ? "监听中\n●" : "监听中\n○";
+            _monitorToggleButton.Type = AntdUI.TTypeMini.Primary;
+            return;
+        }
+
+        _monitorToggleButton.Text = "已暂停\n启动";
+        _monitorToggleButton.Type = AntdUI.TTypeMini.Warn;
+    }
+
     private ContextMenuStrip BuildTrayMenu()
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("显示主窗口", null, (_, _) => ShowMainWindow());
-        menu.Items.Add("开始监听", null, (_, _) => _monitoringEnabled = true);
-        menu.Items.Add("暂停监听", null, (_, _) => _monitoringEnabled = false);
+        menu.Items.Add("开始监听", null, (_, _) =>
+        {
+            _monitoringEnabled = true;
+            RefreshMonitorToggle();
+        });
+        menu.Items.Add("暂停监听", null, (_, _) =>
+        {
+            _monitoringEnabled = false;
+            RefreshMonitorToggle();
+        });
         menu.Items.Add("退出", null, (_, _) =>
         {
             _notifyIcon.Visible = false;
