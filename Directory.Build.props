@@ -1,0 +1,36 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Version>$(VersionPrefix)</Version>
+    <Authors>teg1c</Authors>
+    <Company>teg1c</Company>
+    <BrandChineseName>窗巡</BrandChineseName>
+    <BrandEnglishName>Window Sentinel</BrandEnglishName>
+    <LicenseValidationUrl></LicenseValidationUrl>
+    <LicenseCryptoKeyBase64>MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=</LicenseCryptoKeyBase64>
+    <Title>$(BrandChineseName) $(BrandEnglishName)</Title>
+    <Product>$(BrandChineseName) $(BrandEnglishName)</Product>
+    <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
+    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BrandChineseName</_Parameter1>
+      <_Parameter2>$(BrandChineseName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BrandEnglishName</_Parameter1>
+      <_Parameter2>$(BrandEnglishName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LicenseValidationUrl</_Parameter1>
+      <_Parameter2>$(LicenseValidationUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LicenseCryptoKeyBase64</_Parameter1>
+      <_Parameter2>$(LicenseCryptoKeyBase64)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

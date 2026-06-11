@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WindowsMonitor.App/WindowsMonitor.App.csproj" />
+    <Project Path="src/WindowsMonitor.Core/WindowsMonitor.Core.csproj" />
+    <Project Path="src/WindowsMonitor.Infrastructure/WindowsMonitor.Infrastructure.csproj" />
+    <Project Path="src/WindowsMonitor.Tests/WindowsMonitor.Tests.csproj" />
+    <Project Path="src/WindowsMonitor.Updater/WindowsMonitor.Updater.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Windows Monitor 原型图</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --line: #dfe5ef;
+      --text: #1d2636;
+      --muted: #687386;
+      --primary: #1677ff;
+      --primary-soft: #e8f1ff;
+      --success: #1f9d55;
+      --warning: #d9822b;
+      --danger: #d93025;
+      --sidebar: #182235;
+      --sidebar-active: #273653;
+      --shadow: 0 8px 24px rgba(24, 34, 53, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .prototype {
+      display: grid;
+      grid-template-columns: 224px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: var(--sidebar);
+      color: #dbe5f6;
+      padding: 20px 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px 20px;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+      margin-bottom: 14px;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--primary);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 700;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin: 4px 0;
+      border-radius: 8px;
+      color: #dbe5f6;
+    }
+
+    .nav-item.active {
+      background: var(--sidebar-active);
+      color: white;
+    }
+
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .85;
+    }
+
+    .content {
+      min-width: 0;
+      padding: 22px 28px 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-width: 72px;
+      font: inherit;
+    }
+
+    .btn.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn.danger {
+      border-color: #ffd8d5;
+      background: #fff1f0;
+      color: var(--danger);
+    }
+
+    .status-pill {
+      height: 28px;
+      border-radius: 999px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: #eef9f2;
+      color: var(--success);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .status-pill.warning {
+      background: #fff6e8;
+      color: var(--warning);
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .stats {
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+    }
+
+    .columns {
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+      align-items: start;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .stat-value {
+      margin-top: 8px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .stat-sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      word-break: break-word;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      background: #f8fafd;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 6px;
+      padding: 2px 8px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 12px;
+      margin: 0 4px 4px 0;
+    }
+
+    .tag.green {
+      background: #eaf8ef;
+      color: var(--success);
+    }
+
+    .tag.orange {
+      background: #fff2df;
+      color: var(--warning);
+    }
+
+    .tag.red {
+      background: #fff1f0;
+      color: var(--danger);
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .switch {
+      width: 38px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--primary);
+      position: relative;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      top: 2px;
+      right: 2px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+
+    .switch.off {
+      background: #b9c2d2;
+    }
+
+    .switch.off::after {
+      right: auto;
+      left: 2px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .field label {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      min-height: 34px;
+      padding: 7px 10px;
+      color: var(--text);
+    }
+
+    .textarea {
+      min-height: 76px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .modal-backdrop {
+      margin-top: 18px;
+      padding: 18px;
+      background: rgba(24, 34, 53, .08);
+      border-radius: 8px;
+      border: 1px dashed #b7c4d8;
+    }
+
+    .modal {
+      max-width: 760px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .modal-head,
+    .modal-foot {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-foot {
+      justify-content: flex-end;
+      border-bottom: 0;
+      border-top: 1px solid var(--line);
+      gap: 10px;
+    }
+
+    .modal-body {
+      padding: 16px;
+    }
+
+    .screen-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .progress {
+      height: 10px;
+      background: #e8edf6;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 68%;
+      background: var(--primary);
+    }
+
+    .two-column-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .machine-code {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f8fafd;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      word-break: break-all;
+    }
+
+    @media (max-width: 1080px) {
+      .prototype {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .stats,
+      .columns,
+      .two-column-form {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .content {
+        padding: 18px;
+      }
+
+      .topbar,
+      .screen-title {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="prototype">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">WM</div>
+        <div>
+          <div class="brand-title">Windows Monitor</div>
+          <div style="font-size:12px;color:#aebbd0;">OCR 关键词监听</div>
+        </div>
+      </div>
+      <div class="nav-item active"><span class="nav-dot"></span>主控台</div>
+      <div class="nav-item"><span class="nav-dot"></span>监听规则</div>
+      <div class="nav-item"><span class="nav-dot"></span>窗口列表</div>
+      <div class="nav-item"><span class="nav-dot"></span>任务栏闪烁</div>
+      <div class="nav-item"><span class="nav-dot"></span>事件日志</div>
+      <div class="nav-item"><span class="nav-dot"></span>通知渠道</div>
+      <div class="nav-item"><span class="nav-dot"></span>授权管理</div>
+      <div class="nav-item"><span class="nav-dot"></span>在线更新</div>
+      <div class="nav-item"><span class="nav-dot"></span>系统设置</div>
+    </aside>
+
+    <main class="content">
+      <div class="topbar">
+        <div>
+          <h1>主控台</h1>
+          <div style="color:var(--muted);margin-top:4px;">监听 37 个窗口，OCR 轮询间隔 5 秒</div>
+        </div>
+        <div class="toolbar">
+          <span class="status-pill">● 监听运行中</span>
+          <button class="btn">暂停</button>
+          <button class="btn primary">立即扫描</button>
+        </div>
+      </div>
+
+      <section class="grid stats">
+        <div class="card">
+          <div class="stat-label">今日提醒</div>
+          <div class="stat-value">26</div>
+          <div class="stat-sub">较昨日 +8</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">关键词命中</div>
+          <div class="stat-value">19</div>
+          <div class="stat-sub">标题 7 / OCR 12</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">OCR 成功率</div>
+          <div class="stat-value">96%</div>
+          <div class="stat-sub">平均耗时 420ms</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">授权与版本</div>
+          <div class="stat-value" style="font-size:22px;">已授权</div>
+          <div class="stat-sub">v0.1.0，发现 v0.1.1</div>
+        </div>
+      </section>
+
+      <section class="section grid columns">
+        <div class="card">
+          <div class="screen-title">
+            <h2>最近提醒事件</h2>
+            <button class="btn">查看全部</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:128px;">时间</th>
+                <th style="width:96px;">类型</th>
+                <th>窗口/进程</th>
+                <th>命中内容</th>
+                <th style="width:88px;">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>10:42:18</td>
+                <td><span class="tag">OCR</span></td>
+                <td>业务系统 - Chrome</td>
+                <td>关键词“超时”，订单处理超时 15 分钟</td>
+                <td><span class="tag green">已发送</span></td>
+              </tr>
+              <tr>
+                <td>10:39:02</td>
+                <td><span class="tag orange">闪烁</span></td>
+                <td>WeChat.exe</td>
+                <td>任务栏按钮闪烁</td>
+                <td><span class="tag green">已发送</span></td>
+              </tr>
+              <tr>
+                <td>10:35:47</td>
+                <td><span class="tag">标题</span></td>
+                <td>告警中心</td>
+                <td>关键词“失败”，同步任务失败</td>
+                <td><span class="tag orange">冷却跳过</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>运行状态</h2>
+          <table>
+            <tbody>
+              <tr>
+                <td>OCR 引擎</td>
+                <td><span class="tag green">Windows OCR</span></td>
+              </tr>
+              <tr>
+                <td>通知渠道</td>
+                <td><span class="tag green">系统通知</span><span class="tag">Webhook</span></td>
+              </tr>
+              <tr>
+                <td>排除进程</td>
+                <td>1Password.exe, KeePass.exe, msedge.exe:InPrivate</td>
+              </tr>
+              <tr>
+                <td>最近扫描</td>
+                <td>10:42:20</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section card">
+        <div class="screen-title">
+          <h2>监听规则</h2>
+          <div class="toolbar">
+            <button class="btn">导入</button>
+            <button class="btn">导出</button>
+            <button class="btn primary">新增规则</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:70px;">启用</th>
+              <th>规则名称</th>
+              <th>监听范围</th>
+              <th>关键词</th>
+              <th style="width:110px;">冷却时间</th>
+              <th style="width:120px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="switch"></span></td>
+              <td>订单异常</td>
+              <td>全部窗口：标题 + OCR</td>
+              <td><span class="tag">失败</span><span class="tag">超时</span><span class="tag">异常</span></td>
+              <td>60 秒</td>
+              <td><button class="btn">编辑</button></td>
+            </tr>
+            <tr>
+              <td><span class="switch"></span></td>
+              <td>客户升级</td>
+              <td>指定进程：WeChat.exe</td>
+              <td><span class="tag">投诉</span><span class="tag">升级</span></td>
+              <td>120 秒</td>
+              <td><button class="btn">编辑</button></td>
+            </tr>
+            <tr>
+              <td><span class="switch off"></span></td>
+              <td>测试环境</td>
+              <td>指定区域 OCR</td>
+              <td><span class="tag">error</span></td>
+              <td>30 秒</td>
+              <td><button class="btn">编辑</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="modal-backdrop">
+          <div class="modal">
+            <div class="modal-head">
+              <strong>新增监听规则</strong>
+              <button class="btn">×</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-grid">
+                <div class="field">
+                  <label>规则名称</label>
+                  <div class="input">重点告警</div>
+                </div>
+                <div class="field">
+                  <label>监听范围</label>
+                  <div class="select">全部窗口</div>
+                </div>
+                <div class="field">
+                  <label>监听内容</label>
+                  <div class="select">窗口标题 + OCR 内容</div>
+                </div>
+                <div class="field">
+                  <label>匹配方式</label>
+                  <div class="select">包含任一关键词</div>
+                </div>
+                <div class="field">
+                  <label>OCR 语言</label>
+                  <div class="select">中英文混合</div>
+                </div>
+                <div class="field">
+                  <label>通知渠道</label>
+                  <div><span class="tag green">Windows 通知</span><span class="tag green">Webhook</span></div>
+                </div>
+                <div class="field full">
+                  <label>关键词</label>
+                  <div class="textarea">严重, 失败, 超时, error, failed</div>
+                </div>
+                <div class="field">
+                  <label>OCR 置信度阈值</label>
+                  <div class="input">80%</div>
+                </div>
+                <div class="field">
+                  <label>提醒冷却时间</label>
+                  <div class="input">60 秒</div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn">取消</button>
+              <button class="btn primary">保存并启用</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section grid columns">
+        <div class="card">
+          <div class="screen-title">
+            <h2>任务栏闪烁监听</h2>
+            <button class="btn primary">添加软件</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:70px;">启用</th>
+                <th>软件</th>
+                <th>识别方式</th>
+                <th>最近状态</th>
+                <th style="width:110px;">冷却时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="switch"></span></td>
+                <td>WeChat.exe</td>
+                <td>进程名 + 任务栏按钮状态</td>
+                <td><span class="tag orange">10:39 闪烁</span></td>
+                <td>60 秒</td>
+              </tr>
+              <tr>
+                <td><span class="switch"></span></td>
+                <td>DingTalk.exe</td>
+                <td>进程名 + 窗口类名</td>
+                <td><span class="tag green">正常</span></td>
+                <td>120 秒</td>
+              </tr>
+              <tr>
+                <td><span class="switch off"></span></td>
+                <td>CustomApp.exe</td>
+                <td>窗口标题包含“客服系统”</td>
+                <td><span class="tag red">未运行</span></td>
+                <td>60 秒</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>闪烁通知设置</h2>
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="field">
+              <label>默认通知渠道</label>
+              <div><span class="tag green">Windows 通知</span><span class="tag">Webhook</span></div>
+            </div>
+            <div class="field">
+              <label>最短闪烁确认时间</label>
+              <div class="input">500 ms</div>
+            </div>
+            <div class="field">
+              <label>异常兼容策略</label>
+              <div class="select">WinEvent Hook 失败时启用 UI Automation 轮询</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section card">
+        <div class="screen-title">
+          <h2>事件日志</h2>
+          <div class="toolbar">
+            <button class="btn">筛选</button>
+            <button class="btn">导出 CSV</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:150px;">发生时间</th>
+              <th>规则</th>
+              <th>命中摘要</th>
+              <th>通知</th>
+              <th style="width:120px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2026-06-11 10:42:18</td>
+              <td>订单异常</td>
+              <td>OCR 命中“超时”：订单处理超时 15 分钟</td>
+              <td><span class="tag green">系统通知成功</span></td>
+              <td><button class="btn">详情</button></td>
+            </tr>
+            <tr>
+              <td>2026-06-11 10:39:02</td>
+              <td>微信闪烁</td>
+              <td>WeChat.exe 任务栏闪烁</td>
+              <td><span class="tag green">Webhook 成功</span></td>
+              <td><button class="btn">详情</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section grid columns">
+        <div class="card">
+          <h2>授权管理</h2>
+          <div class="two-column-form">
+            <div>
+              <div class="field">
+                <label>授权状态</label>
+                <span class="status-pill">● 已授权，有效期至 2027-06-11</span>
+              </div>
+              <div class="field" style="margin-top:14px;">
+                <label>授权周期</label>
+                <div><span class="tag green">按年</span><span class="tag">按天</span><span class="tag">按月</span><span class="tag">永久</span></div>
+              </div>
+              <div class="field" style="margin-top:14px;">
+                <label>机器唯一编码</label>
+                <div class="machine-code">WM-6F92-5D41-C3A8-9B77-0A12-4C35</div>
+              </div>
+            </div>
+            <div class="form-grid" style="grid-template-columns:1fr;">
+              <div class="field">
+                <label>在线授权码</label>
+                <div class="input">XXXX-XXXX-XXXX-XXXX</div>
+              </div>
+              <div class="toolbar">
+                <button class="btn primary">在线激活</button>
+                <button class="btn">导入离线授权</button>
+                <button class="btn">复制机器码</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>在线更新</h2>
+          <table>
+            <tbody>
+              <tr>
+                <td>更新来源</td>
+                <td>GitHub Releases</td>
+              </tr>
+              <tr>
+                <td>当前版本</td>
+                <td>v0.1.0</td>
+              </tr>
+              <tr>
+                <td>最新版本</td>
+                <td><span class="tag orange">v0.1.1 可用</span></td>
+              </tr>
+              <tr>
+                <td>下载进度</td>
+                <td><div class="progress"><span></span></div></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="toolbar" style="margin-top:14px;">
+            <button class="btn">查看更新说明</button>
+            <button class="btn primary">下载并安装</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
