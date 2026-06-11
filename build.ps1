@@ -8,7 +8,7 @@ param(
 
     [string]$LicenseValidationUrl = "",
 
-    [string]$LicenseCryptoKeyBase64 = "",
+    [string]$LicenseCryptoKeyBase64 = "MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=",
 
     [switch]$SelfContained,
 
