@@ -72,6 +72,29 @@ public sealed class RuleMatcherTests
     }
 
     [Fact]
+    public void Match_ToleratesOcrWhitespaceAndMissingCharacter()
+    {
+        var rule = new MonitorRule
+        {
+            Name = "OCR 网络错误",
+            RuleType = MonitorRuleType.Ocr,
+            Keywords = ["网络错误"],
+            ContentTypes = [MonitorContentType.OcrText]
+        };
+        var input = new MonitorInput(
+            MonitorContentType.OcrText,
+            "ATK HUB GUI 精 选 网 络 误 ， 清 重 新 登 录",
+            null,
+            "桌面",
+            DateTimeOffset.Now);
+
+        var matches = new RuleMatcher().Match([rule], input).ToList();
+
+        Assert.Single(matches);
+        Assert.Equal("网络错误", matches[0].Keyword);
+    }
+
+    [Fact]
     public void EventCooldown_SkipsRepeatedFingerprintWithinWindow()
     {
         var monitorEvent = new MonitorEvent
