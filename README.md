@@ -18,7 +18,7 @@
 ## 技术栈
 
 - 客户端：C#、WinForms、AntdUI
-- OCR：Windows OCR
+- OCR：RapidOCR / PP-OCRv5（优先），Windows OCR（兜底）
 - 数据存储：SQLite
 - 远程授权服务：Go
 - 发布更新：GitHub Releases
@@ -69,6 +69,8 @@ artifacts/                        临时产物目录，已忽略
 dotnet restore WindowsMonitor.slnx
 dotnet build WindowsMonitor.slnx -c Debug
 ```
+
+默认发布包会内置 RapidOCR 中文模型。开发调试时如果没有下载模型，软件会自动使用 Windows OCR 兜底。
 
 运行测试：
 
@@ -266,6 +268,18 @@ C:\ProgramData\WindowsMonitor\logs\app.1.log
 ```
 
 默认构建不会显示“日志”页面，但本地日志仍会写入 `C:\ProgramData\WindowsMonitor\logs\app.log`。
+
+构建脚本默认会下载 RapidOCR 中文 PP-OCRv5 模型，并复制到发布目录：
+
+```text
+dist/WindowsMonitor/models/v5/
+```
+
+模型缓存目录为 `artifacts/rapidocr-models/v5`，该目录不会提交到源码仓库。如只想验证代码构建、不下载模型，可以使用：
+
+```powershell
+.\build.ps1 -Version 0.1.0 -SkipRapidOcrModels
+```
 
 构建产物会输出到 `dist`：
 

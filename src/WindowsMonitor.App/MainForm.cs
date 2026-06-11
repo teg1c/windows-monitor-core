@@ -31,7 +31,7 @@ public sealed class MainForm : Form
     private readonly IWindowInventoryService _windowInventory = new WindowInventoryService();
     private readonly IMachineCodeService _machineCodeService = new MachineCodeService();
     private readonly ICaptureService _captureService = new DesktopCaptureService();
-    private readonly IOcrEngine _ocrEngine = new WindowsOcrEngine();
+    private readonly IOcrEngine _ocrEngine = new FallbackOcrEngine(new RapidOcrEngine(), new WindowsOcrEngine());
     private readonly HttpClient _httpClient = new();
     private readonly RuleMatcher _ruleMatcher = new();
     private readonly EventCooldown _cooldown = new();
@@ -854,7 +854,7 @@ public sealed class MainForm : Form
 
                 using var cropped = CropForRule(bitmap, rule);
                 var ocr = await _ocrEngine.RecognizeAsync(cropped, new OcrOptions("zh-Hans,en"));
-                AppLogger.Debug($"文字识别完成。rule={rule.Name}, textLength={ocr.Text?.Length ?? 0}, durationMs={ocr.Duration.TotalMilliseconds:N0}");
+                AppLogger.Debug($"文字识别完成。rule={rule.Name}, engine={ocr.EngineName}, textLength={ocr.Text?.Length ?? 0}, durationMs={ocr.Duration.TotalMilliseconds:N0}");
                 if (string.IsNullOrWhiteSpace(ocr.Text))
                 {
                     continue;

@@ -16,6 +16,8 @@ param(
 
     [switch]$SkipTests,
 
+    [switch]$SkipRapidOcrModels,
+
     [switch]$NoZip
 )
 
@@ -30,6 +32,7 @@ $versionProps = Join-Path $root "Directory.Build.props"
 $distRoot = Join-Path $root "dist"
 $publishDir = Join-Path $distRoot "WindowsMonitor"
 $updaterDir = Join-Path $publishDir "updater"
+$rapidOcrModelsDir = Join-Path $root "artifacts\rapidocr-models\v5"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     [xml]$props = Get-Content -Path $versionProps
@@ -60,6 +63,7 @@ Write-Host "Version:       $tagName"
 Write-Host "License URL:   $(if ([string]::IsNullOrWhiteSpace($LicenseValidationUrl)) { '(not configured)' } else { $LicenseValidationUrl })"
 Write-Host "Log tab:       $([bool]$EnableLogTab)"
 Write-Host "SelfContained: $([bool]$SelfContained)"
+Write-Host "RapidOCR:      $(if ($SkipRapidOcrModels) { 'skip model download' } else { 'download Chinese models' })"
 Write-Host "Output:        $publishDir"
 
 Get-Process -Name "WindowsMonitor.App" -ErrorAction SilentlyContinue |
@@ -80,6 +84,10 @@ New-Item -ItemType Directory -Path $updaterDir -Force | Out-Null
 Push-Location $root
 try {
     Invoke-DotNet -Arguments @("restore", $solution, "-r", $Runtime)
+
+    if (-not $SkipRapidOcrModels) {
+        & (Join-Path $root "tools\download-rapidocr-models.ps1") -Destination $rapidOcrModelsDir
+    }
 
     if (-not $SkipTests) {
         Invoke-DotNet -Arguments @("test", $solution, "-c", $Configuration, "--no-restore")
@@ -111,6 +119,13 @@ try {
 }
 finally {
     Pop-Location
+}
+
+if (Test-Path $rapidOcrModelsDir) {
+    $publishModelsDir = Join-Path $publishDir "models\v5"
+    New-Item -ItemType Directory -Path $publishModelsDir -Force | Out-Null
+    Copy-Item -Path (Join-Path $rapidOcrModelsDir "*") -Destination $publishModelsDir -Force
+    Write-Host "RapidOCR models copied: $publishModelsDir"
 }
 
 if (-not $NoZip) {
