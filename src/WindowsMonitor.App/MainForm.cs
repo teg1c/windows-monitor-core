@@ -505,12 +505,8 @@ public sealed class MainForm : Form
         };
         var copy = Button("复制机器码", 120);
         var activate = Button("激活", 90);
-        var import = Button("导入授权", 110);
-        var check = Button("远程校验", 110);
         copy.Click += (_, _) => Clipboard.SetText(_machineCode);
         activate.Click += async (_, _) => await ActivateLicenseAsync();
-        import.Click += async (_, _) => await ImportLicenseAsync(_machineCode);
-        check.Click += async (_, _) => await ValidateLicenseAsync(forceRemoteCheck: true);
 
         var inputRow = new TableLayoutPanel
         {
@@ -535,8 +531,6 @@ public sealed class MainForm : Form
 
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, Height = 42, BackColor = Color.White };
         buttons.Controls.Add(copy);
-        buttons.Controls.Add(import);
-        buttons.Controls.Add(check);
 
         var licenseBody = new TableLayoutPanel
         {
