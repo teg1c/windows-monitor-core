@@ -1301,7 +1301,20 @@ public sealed class MainForm : Form
             var currentVersion = CurrentVersionText();
             var latestVersion = NormalizeVersionToken(release.TagName);
             _updateOutput.Text = UpdateVersionText(release.TagName);
-            SetStatus(IsNewerVersion(latestVersion, currentVersion) ? "发现新版本。" : "已是最新版本。");
+            if (IsNewerVersion(latestVersion, currentVersion))
+            {
+                SetStatus($"发现新版本 {release.TagName}，请更新到最新版。");
+                MessageBox.Show(
+                    this,
+                    $"发现新版本：{release.TagName}{Environment.NewLine}当前版本：{currentVersion}{Environment.NewLine}{Environment.NewLine}请更新到最新版。",
+                    "发现新版本",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            else
+            {
+                SetStatus("已是最新版本。");
+            }
         }
         catch (Exception ex)
         {
