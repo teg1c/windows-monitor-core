@@ -494,8 +494,15 @@ public sealed class MainForm : Form
             Radius = 6,
             Text = LicenseText(_machineCode, _licenseValidation)
         };
-        _licenseCodeInput = new AntInput { Width = 430, PlaceholderText = "粘贴加密授权码", Radius = 6 };
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 92, BackColor = Color.White };
+        _licenseCodeInput = new AntInput
+        {
+            Dock = DockStyle.Fill,
+            Height = 34,
+            PlaceholderText = "粘贴加密授权码",
+            Radius = 6,
+            BorderColor = Color.FromArgb(217, 217, 217),
+            BorderActive = Color.FromArgb(22, 119, 255)
+        };
         var copy = Button("复制机器码", 120);
         var activate = Button("激活", 90);
         var import = Button("导入授权", 110);
@@ -504,15 +511,48 @@ public sealed class MainForm : Form
         activate.Click += async (_, _) => await ActivateLicenseAsync();
         import.Click += async (_, _) => await ImportLicenseAsync(_machineCode);
         check.Click += async (_, _) => await ValidateLicenseAsync(forceRemoteCheck: true);
-        actions.Controls.Add(new Label { Text = "授权码", AutoSize = true, Padding = new Padding(0, 8, 4, 0) });
-        actions.Controls.Add(_licenseCodeInput);
-        actions.Controls.Add(activate);
-        actions.SetFlowBreak(activate, true);
-        actions.Controls.Add(copy);
-        actions.Controls.Add(import);
-        actions.Controls.Add(check);
-        var card = Card("软件授权", _licenseOutput);
-        card.Controls.Add(actions);
+
+        var inputRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = new Padding(0, 0, 0, 4)
+        };
+        inputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
+        inputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        inputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
+        inputRow.Controls.Add(new Label
+        {
+            Text = "授权码",
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = Color.FromArgb(38, 38, 38)
+        }, 0, 0);
+        inputRow.Controls.Add(_licenseCodeInput, 1, 0);
+        inputRow.Controls.Add(activate, 2, 0);
+
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, Height = 42, BackColor = Color.White };
+        buttons.Controls.Add(copy);
+        buttons.Controls.Add(import);
+        buttons.Controls.Add(check);
+
+        var licenseBody = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            ColumnCount = 1,
+            RowCount = 3
+        };
+        licenseBody.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        licenseBody.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        licenseBody.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        licenseBody.Controls.Add(inputRow, 0, 0);
+        licenseBody.Controls.Add(buttons, 0, 1);
+        licenseBody.Controls.Add(_licenseOutput, 0, 2);
+
+        var card = Card("软件授权", licenseBody);
         _content.Controls.Add(card);
     }
 
