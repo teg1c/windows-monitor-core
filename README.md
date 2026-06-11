@@ -193,6 +193,52 @@ teg1c/windows-monitor-release
 
 点击“检测最新版本”会读取 GitHub Releases 最新版本；点击“下载最新版本”会下载最新 zip 包，并在存在 sha256 文件时校验完整性。
 
+### 6. 运行日志与排查
+
+软件会始终写入本地运行日志：
+
+```text
+C:\ProgramData\WindowsMonitor\logs\app.log
+```
+
+日志文件最大 20MB，超过后会自动轮转为：
+
+```text
+C:\ProgramData\WindowsMonitor\logs\app.1.log
+```
+
+日志会记录以下关键信息：
+
+- 应用启动和未处理异常
+- 授权校验结果
+- 规则加载数量、启用数量、各类型规则数量
+- 窗口标题扫描开始、命中结果、扫描异常
+- OCR 扫描开始、截图为空、识别文本长度、识别耗时、命中结果
+- 任务栏闪烁监听启动、WinEvent hook 创建失败、闪烁事件命中
+- 系统通知和网络回调发送结果
+- 冷却时间跳过、连续发送上限跳过
+
+如果规则开启后没有生效，优先按下面顺序排查：
+
+1. 查看日志里是否出现“授权不可用”或“监听已暂停”。
+2. 查看日志里是否加载到了启用规则，例如 `enabled=3`。
+3. 窗口标题规则：查看是否有“窗口标题扫描开始”，以及窗口标题是否真的包含关键词。
+4. 文字识别规则：查看 `textLength` 是否大于 0；如果一直是 0，说明 OCR 没识别到文本或截图区域不对。
+5. 任务栏闪烁规则：查看是否有“任务栏闪烁监听已启动”和“WinEvent 任务栏闪烁事件命中”。
+6. 命中后没有通知：查看是否被“冷却中”或“连续发送上限”跳过，或者 Webhook 是否发送失败。
+
+默认软件界面不显示“日志”页面。如需在软件内查看日志，构建诊断版时开启日志页面：
+
+```powershell
+.\build.ps1 -Version 0.1.0 -EnableLogTab
+```
+
+发布诊断版也可以传入同样参数：
+
+```powershell
+.\publish-release.ps1 -Version 0.1.0 -EnableLogTab -Push
+```
+
 ## 构建软件
 
 普通构建：
@@ -219,7 +265,7 @@ teg1c/windows-monitor-release
 .\build.ps1 -Version 0.1.0 -EnableLogTab
 ```
 
-默认构建不会显示“日志”页面，但本地日志仍会写入 `C:\ProgramData\WindowsMonitor\logs\app.log`，单个日志文件最大 20MB。
+默认构建不会显示“日志”页面，但本地日志仍会写入 `C:\ProgramData\WindowsMonitor\logs\app.log`。
 
 构建产物会输出到 `dist`：
 
@@ -257,6 +303,12 @@ dist/latest.json
 
 ```powershell
 .\publish-release.ps1 -Version 0.1.0 -Push -CreateGitHubRelease
+```
+
+发布带“日志”页面的诊断包：
+
+```powershell
+.\publish-release.ps1 -Version 0.1.0 -EnableLogTab -Push
 ```
 
 没有 GitHub CLI 时，可以手动到 `teg1c/windows-monitor-release` 创建 Release，标签使用同版本号，例如：
