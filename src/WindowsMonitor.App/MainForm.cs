@@ -917,7 +917,7 @@ public sealed class MainForm : Form
             RuleTypeText(rule.RuleType),
             rule.Name,
             RuleTargetText(rule),
-            string.Join(", ", rule.Keywords),
+            RuleKeywordsText(rule),
             string.Join(", ", rule.NotificationChannels.Select(ChannelText)),
             $"{rule.MaxConsecutiveNotifications}x / {rule.CooldownSeconds}s",
             new AntCellButton("toggle", rule.Enabled ? "停用" : "启用", rule.Enabled ? AntdUI.TTypeMini.Warn : AntdUI.TTypeMini.Primary) { Radius = 6 })).ToList();
@@ -945,6 +945,16 @@ public sealed class MainForm : Form
         }
 
         return $"{rule.ProcessName ?? "任意进程"} / {rule.WindowTitlePattern ?? "任意标题"}";
+    }
+
+    private static string RuleKeywordsText(MonitorRule rule)
+    {
+        if (rule.Keywords.Count > 0)
+        {
+            return string.Join(", ", rule.Keywords);
+        }
+
+        return rule.RuleType == MonitorRuleType.TaskbarFlash ? "任务栏闪烁" : "";
     }
 
     private static string RuleTypeText(MonitorRuleType type)
@@ -1590,9 +1600,9 @@ public sealed class MainForm : Form
         table.Columns.Add(new AntColumn(nameof(RuleRow.Status), "状态") { Width = "64" });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Type), "类型") { Width = "100" });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Name), "名称") { Width = "150" });
-        table.Columns.Add(new AntColumn(nameof(RuleRow.Target), "目标") { Width = "20%", Ellipsis = true });
-        table.Columns.Add(new AntColumn(nameof(RuleRow.Keywords), "关键词") { Width = "18%", Ellipsis = true });
-        table.Columns.Add(new AntColumn(nameof(RuleRow.Channels), "通知渠道") { Width = "150", Ellipsis = true });
+        table.Columns.Add(new AntColumn(nameof(RuleRow.Target), "目标") { Width = "170", Ellipsis = true });
+        table.Columns.Add(new AntColumn(nameof(RuleRow.Keywords), "关键词") { Width = "160", Ellipsis = true });
+        table.Columns.Add(new AntColumn(nameof(RuleRow.Channels), "通知渠道") { Width = "170", Ellipsis = true });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Limit), "限制") { Width = "95" });
         table.Columns.Add(new AntColumn(nameof(RuleRow.Action), "操作") { Width = "104" });
         return table;
