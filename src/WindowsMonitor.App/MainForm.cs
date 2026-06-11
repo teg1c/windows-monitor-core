@@ -21,6 +21,7 @@ using AntMenuItem = AntdUI.MenuItem;
 using AntTable = AntdUI.Table;
 using AntColumn = AntdUI.Column;
 using AntCellButton = AntdUI.CellButton;
+using AntCellText = AntdUI.CellText;
 
 namespace WindowsMonitor.App;
 
@@ -945,10 +946,10 @@ public sealed class MainForm : Form
             rule.Enabled ? "启用" : "停用",
             RuleTypeText(rule.RuleType),
             rule.Name,
-            RuleTargetText(rule),
-            RuleKeywordsText(rule),
-            RuleChannelsText(rule),
-            $"{rule.MaxConsecutiveNotifications}x / {rule.CooldownSeconds}s",
+            TableText(RuleTargetText(rule)),
+            TableText(RuleKeywordsText(rule)),
+            TableText(RuleChannelsText(rule)),
+            TableText($"{rule.MaxConsecutiveNotifications}x / {rule.CooldownSeconds}s"),
             new AntCellButton("toggle", rule.Enabled ? "停用" : "启用", rule.Enabled ? AntdUI.TTypeMini.Warn : AntdUI.TTypeMini.Primary) { Radius = 6 })).ToList();
         _rulesGrid.DataSource = _ruleRows;
         if (_selectedRuleId is not null && _ruleRows.All(row => row.Rule.Id != _selectedRuleId.Value))
@@ -991,6 +992,14 @@ public sealed class MainForm : Form
         return rule.NotificationChannels.Count > 0
             ? string.Join(", ", rule.NotificationChannels.Select(ChannelText))
             : "未配置";
+    }
+
+    private static AntCellText TableText(string text)
+    {
+        return new AntCellText(text)
+        {
+            Fore = Color.FromArgb(31, 41, 55)
+        };
     }
 
     private static string RuleTypeText(MonitorRuleType type)
@@ -1809,10 +1818,10 @@ public sealed class MainForm : Form
         string Status,
         string Type,
         string Name,
-        string Target,
-        string KeywordText,
-        string ChannelText,
-        string Limit,
+        AntCellText Target,
+        AntCellText KeywordText,
+        AntCellText ChannelText,
+        AntCellText Limit,
         AntCellButton Action);
 
     private sealed record EventRow(
