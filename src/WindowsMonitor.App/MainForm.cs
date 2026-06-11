@@ -149,7 +149,7 @@ public sealed class MainForm : Form
             Padding = new Padding(12),
             Radius = 0
         };
-        var brand = new AntButton
+        var brand = new Label
         {
             Text = BuildMetadata.DisplayName,
             ForeColor = Color.White,
@@ -158,8 +158,8 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             Height = 54,
             Padding = new Padding(6, 8, 0, 0),
-            Radius = 8,
-            Type = AntdUI.TTypeMini.Default
+            TextAlign = ContentAlignment.MiddleLeft,
+            Cursor = Cursors.Hand
         };
         brand.Click += async (_, _) =>
         {
@@ -1343,12 +1343,16 @@ public sealed class MainForm : Form
             if (IsNewerVersion(latestVersion, currentVersion))
             {
                 SetStatus($"发现新版本 {release.TagName}，请更新到最新版。");
-                MessageBox.Show(
+                var download = MessageBox.Show(
                     this,
-                    $"发现新版本：{release.TagName}{Environment.NewLine}当前版本：{currentVersion}{Environment.NewLine}{Environment.NewLine}请更新到最新版。",
+                    $"发现新版本：{release.TagName}{Environment.NewLine}当前版本：{currentVersion}{Environment.NewLine}{Environment.NewLine}是否立即下载最新版？",
                     "发现新版本",
-                    MessageBoxButtons.OK,
+                    MessageBoxButtons.YesNo,
                     MessageBoxIcon.Information);
+                if (download == DialogResult.Yes)
+                {
+                    await DownloadLatestUpdateAsync(owner, repo);
+                }
             }
             else
             {
@@ -1359,6 +1363,24 @@ public sealed class MainForm : Form
         {
             _updateOutput.Text = UpdateVersionText("检测失败");
             SetStatus($"检测更新失败：{ex.Message}");
+        }
+    }
+
+    private async Task DownloadLatestUpdateAsync(string owner, string repo)
+    {
+        if (_updateOutput is null) return;
+        try
+        {
+            SetStatus("正在下载最新版...");
+            var package = await _updateService.DownloadLatestPackageAsync(owner, repo, AppPaths.UpdateDirectory);
+            _updateOutput.Text = $"{UpdateVersionText(package.Version)}{Environment.NewLine}{Environment.NewLine}已下载：{package.PackagePath}";
+            SetStatus("最新版已下载。");
+            MessageBox.Show(this, $"最新版已下载：{package.PackagePath}", "下载完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"下载最新版失败：{ex.Message}");
+            MessageBox.Show(this, $"下载最新版失败：{ex.Message}", "下载失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
