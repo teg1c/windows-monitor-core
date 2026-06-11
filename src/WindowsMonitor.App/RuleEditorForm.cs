@@ -77,10 +77,12 @@ public sealed class RuleEditorForm : Form
     {
         _ruleType.Items.AddRange(new object[] { "窗口标题", "文字识别", "任务栏闪烁" });
         _ocrTarget.Items.AddRange(new object[] { "整个桌面", "窗口" });
-        _ruleType.SelectedIndexChanged += (_, _) => UpdateVisibility();
-        _ocrTarget.SelectedIndexChanged += (_, _) => UpdateVisibility();
-        _toast.CheckedChanged += (_, _) => UpdateVisibility();
-        _webhook.CheckedChanged += (_, _) => UpdateVisibility();
+        _ruleType.SelectedIndexChanged += (_, _) => ScheduleVisibilityUpdate();
+        _ruleType.TextChanged += (_, _) => ScheduleVisibilityUpdate();
+        _ocrTarget.SelectedIndexChanged += (_, _) => ScheduleVisibilityUpdate();
+        _ocrTarget.TextChanged += (_, _) => ScheduleVisibilityUpdate();
+        _toast.CheckedChanged += (_, _) => ScheduleVisibilityUpdate();
+        _webhook.CheckedChanged += (_, _) => ScheduleVisibilityUpdate();
         _pickRegion.Click += async (_, _) => await PickOcrRegionAsync();
         _clearRegion.Click += (_, _) =>
         {
@@ -149,8 +151,8 @@ public sealed class RuleEditorForm : Form
 
     private void LoadRule(MonitorRule rule)
     {
-        _ruleType.Text = RuleTypeText(rule.RuleType);
-        _ocrTarget.Text = OcrTargetText(rule.OcrTargetType);
+        SelectItemText(_ruleType, RuleTypeText(rule.RuleType));
+        SelectItemText(_ocrTarget, OcrTargetText(rule.OcrTargetType));
         _name.Text = rule.Name;
         _keywords.Text = string.Join(Environment.NewLine, rule.Keywords);
         _processName.Text = rule.ProcessName ?? string.Empty;
@@ -196,6 +198,11 @@ public sealed class RuleEditorForm : Form
 
     private void UpdateVisibility()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
         var type = SelectedRuleType();
         var isWindowTitle = type == MonitorRuleType.WindowTitle;
         var isOcr = type == MonitorRuleType.Ocr;
@@ -229,6 +236,22 @@ public sealed class RuleEditorForm : Form
         _pickRegion.Enabled = isOcr;
         _clearRegion.Enabled = isOcr;
         ResizeRows();
+    }
+
+    private void ScheduleVisibilityUpdate()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (!IsHandleCreated)
+        {
+            UpdateVisibility();
+            return;
+        }
+
+        BeginInvoke((MethodInvoker)UpdateVisibility);
     }
 
     private async Task PickOcrRegionAsync()
@@ -378,21 +401,68 @@ public sealed class RuleEditorForm : Form
 
     private MonitorRuleType SelectedRuleType()
     {
-        return Enum.TryParse<MonitorRuleType>(_ruleType.Text, out var type)
+        var text = _ruleType.Text?.Trim();
+        if (text is "文字识别" or "OCR识别")
+        {
+            return MonitorRuleType.Ocr;
+        }
+
+        if (text == "任务栏闪烁")
+        {
+            return MonitorRuleType.TaskbarFlash;
+        }
+
+        if (text == "窗口标题")
+        {
+            return MonitorRuleType.WindowTitle;
+        }
+
+        if (_ruleType.SelectedIndex == 1)
+        {
+            return MonitorRuleType.Ocr;
+        }
+
+        if (_ruleType.SelectedIndex == 2)
+        {
+            return MonitorRuleType.TaskbarFlash;
+        }
+
+        if (_ruleType.SelectedIndex == 0)
+        {
+            return MonitorRuleType.WindowTitle;
+        }
+
+        return Enum.TryParse<MonitorRuleType>(text, out var type)
             ? type
-            : _ruleType.Text switch
-            {
-            "文字识别" or "OCR识别" => MonitorRuleType.Ocr,
-                "任务栏闪烁" => MonitorRuleType.TaskbarFlash,
-                _ => MonitorRuleType.WindowTitle
-            };
+            : MonitorRuleType.WindowTitle;
     }
 
     private OcrTargetType SelectedOcrTarget()
     {
-        return Enum.TryParse<OcrTargetType>(_ocrTarget.Text, out var type)
+        var text = _ocrTarget.Text?.Trim();
+        if (text == "窗口")
+        {
+            return OcrTargetType.Window;
+        }
+
+        if (text == "整个桌面")
+        {
+            return OcrTargetType.Desktop;
+        }
+
+        if (_ocrTarget.SelectedIndex == 1)
+        {
+            return OcrTargetType.Window;
+        }
+
+        if (_ocrTarget.SelectedIndex == 0)
+        {
+            return OcrTargetType.Desktop;
+        }
+
+        return Enum.TryParse<OcrTargetType>(text, out var type)
             ? type
-            : _ocrTarget.Text == "窗口" ? OcrTargetType.Window : OcrTargetType.Desktop;
+            : OcrTargetType.Desktop;
     }
 
     private WindowSnapshot? SelectedOcrWindow()
@@ -429,6 +499,19 @@ public sealed class RuleEditorForm : Form
     private static string OcrTargetText(OcrTargetType type)
     {
         return type == OcrTargetType.Window ? "窗口" : "整个桌面";
+    }
+
+    private static void SelectItemText(AntSelect select, string text)
+    {
+        select.Text = text;
+        for (var index = 0; index < select.Items.Count; index++)
+        {
+            if (string.Equals(select.Items[index]?.ToString(), text, StringComparison.Ordinal))
+            {
+                select.SelectedIndex = index;
+                return;
+            }
+        }
     }
 
     private void AddRow(string key, string label, Control editor, int height)
