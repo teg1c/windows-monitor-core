@@ -48,9 +48,15 @@ public sealed class RuleMatcher
             return false;
         }
 
+        var title = input.Window?.Title;
+        if (string.IsNullOrWhiteSpace(title) && input.Type == MonitorContentType.WindowTitle)
+        {
+            title = input.Text;
+        }
+
         if (!string.IsNullOrWhiteSpace(rule.WindowTitlePattern) &&
-            input.Window is { Title.Length: > 0 } window &&
-            !window.Title.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase))
+            !string.IsNullOrWhiteSpace(title) &&
+            !title.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

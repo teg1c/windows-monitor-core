@@ -8,6 +8,7 @@
     <BrandEnglishName>Window Sentinel</BrandEnglishName>
     <LicenseValidationUrl></LicenseValidationUrl>
     <LicenseCryptoKeyBase64>MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=</LicenseCryptoKeyBase64>
+    <EnableLogTab>false</EnableLogTab>
     <Title>$(BrandChineseName) $(BrandEnglishName)</Title>
     <Product>$(BrandChineseName) $(BrandEnglishName)</Product>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
@@ -31,6 +32,10 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>LicenseCryptoKeyBase64</_Parameter1>
       <_Parameter2>$(LicenseCryptoKeyBase64)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>EnableLogTab</_Parameter1>
+      <_Parameter2>$(EnableLogTab)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 </Project>

@@ -7,6 +7,8 @@ param(
 
     [string]$LicenseCryptoKeyBase64 = "MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=",
 
+    [switch]$EnableLogTab,
+
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
 
@@ -50,6 +52,9 @@ if ($SelfContained) {
 }
 if ($SkipTests) {
     $buildParams.SkipTests = $true
+}
+if ($EnableLogTab) {
+    $buildParams.EnableLogTab = $true
 }
 
 & (Join-Path $root "build.ps1") @buildParams

@@ -50,6 +50,28 @@ public sealed class RuleMatcherTests
     }
 
     [Fact]
+    public void Match_RespectsTitleFilter_WhenWindowSnapshotIsMissing()
+    {
+        var rule = new MonitorRule
+        {
+            Name = "指定标题",
+            WindowTitlePattern = "订单系统",
+            Keywords = ["失败"],
+            ContentTypes = [MonitorContentType.WindowTitle]
+        };
+        var input = new MonitorInput(
+            MonitorContentType.WindowTitle,
+            "同步任务失败",
+            null,
+            "demo.exe",
+            DateTimeOffset.Now);
+
+        var matches = new RuleMatcher().Match([rule], input);
+
+        Assert.Empty(matches);
+    }
+
+    [Fact]
     public void EventCooldown_SkipsRepeatedFingerprintWithinWindow()
     {
         var monitorEvent = new MonitorEvent

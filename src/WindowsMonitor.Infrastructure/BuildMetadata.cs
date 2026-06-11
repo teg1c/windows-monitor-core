@@ -8,6 +8,7 @@ public static class BuildMetadata
     public static string BrandEnglishName { get; } = Metadata("BrandEnglishName", "Window Sentinel");
     public static string DisplayName { get; } = $"{BrandChineseName} {BrandEnglishName}";
     public static string LicenseValidationUrl { get; } = Metadata("LicenseValidationUrl", string.Empty);
+    public static bool EnableLogTab { get; } = bool.TryParse(Metadata("EnableLogTab", "false"), out var value) && value;
     public static string LicenseCryptoKeyBase64 { get; } = Metadata(
         "LicenseCryptoKeyBase64",
         "MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=");

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using WindowsMonitor.Core.Models;
 using WindowsMonitor.Core.Services;
+using WindowsMonitor.Infrastructure;
 using WindowsMonitor.Infrastructure.Win32;
 
 namespace WindowsMonitor.Infrastructure.Taskbar;
@@ -24,6 +25,7 @@ public sealed class WinEventTaskbarFlashDetector : ITaskbarFlashDetector
     {
         _targets = targets;
         Stop();
+        AppLogger.Info($"WinEvent 任务栏闪烁检测器启动。targets={targets.Count}");
         _alertHook = SetWinEventHook(
             EventSystemAlert,
             EventSystemAlert,
@@ -40,20 +42,37 @@ public sealed class WinEventTaskbarFlashDetector : ITaskbarFlashDetector
             0,
             0,
             WineventOutOfContext | WineventSkipOwnProcess);
+        if (_alertHook == IntPtr.Zero)
+        {
+            AppLogger.Warning("WinEvent EVENT_SYSTEM_ALERT hook 创建失败。");
+        }
+
+        if (_stateHook == IntPtr.Zero)
+        {
+            AppLogger.Warning("WinEvent EVENT_OBJECT_STATECHANGE hook 创建失败。");
+        }
     }
 
     public void Stop()
     {
+        var stopped = false;
         if (_alertHook != IntPtr.Zero)
         {
             UnhookWinEvent(_alertHook);
             _alertHook = IntPtr.Zero;
+            stopped = true;
         }
 
         if (_stateHook != IntPtr.Zero)
         {
             UnhookWinEvent(_stateHook);
             _stateHook = IntPtr.Zero;
+            stopped = true;
+        }
+
+        if (stopped)
+        {
+            AppLogger.Info("WinEvent 任务栏闪烁检测器已停止。");
         }
     }
 
@@ -89,9 +108,11 @@ public sealed class WinEventTaskbarFlashDetector : ITaskbarFlashDetector
         if (!string.IsNullOrWhiteSpace(target.WindowTitlePattern) &&
             !title.Contains(target.WindowTitlePattern, StringComparison.OrdinalIgnoreCase))
         {
+            AppLogger.Debug($"WinEvent 事件未命中标题过滤。process={processName}, title={title}, filter={target.WindowTitlePattern}");
             return;
         }
 
+        AppLogger.Info($"WinEvent 任务栏闪烁事件命中。process={processName}, title={title}, eventType=0x{eventType:X}");
         FlashDetected?.Invoke(this, new TaskbarFlashEvent(
             processName,
             title,

@@ -55,6 +55,7 @@ public sealed class MainForm : Form
     private AntInput? _updateOutput;
     private AntInput? _licenseOutput;
     private AntInput? _licenseCodeInput;
+    private AntInput? _logOutput;
     private AntButton? _monitorToggleButton;
 
     private bool _initialized;
@@ -117,6 +118,7 @@ public sealed class MainForm : Form
         _initialized = true;
         await _repository.InitializeAsync();
         _machineCode = _machineCodeService.GetMachineCode();
+        AppLogger.Info($"主窗口初始化。machineCode={_machineCode}, logTab={BuildMetadata.EnableLogTab}");
         await ValidateLicenseAsync(forceRemoteCheck: true);
         await LoadRulesAsync();
         if (IsLicenseUsable)
@@ -192,10 +194,14 @@ public sealed class MainForm : Form
         menu.Items.Add(new AntMenuItem("事件") { ID = "Events" });
         menu.Items.Add(new AntMenuItem("授权") { ID = "License" });
         menu.Items.Add(new AntMenuItem("更新") { ID = "Updates" });
+        if (BuildMetadata.EnableLogTab)
+        {
+            menu.Items.Add(new AntMenuItem("日志") { ID = "Logs" });
+        }
         menu.Items.Add(new AntMenuItem("关于") { ID = "About" });
         menu.ItemClick += async (_, e) =>
         {
-            if (!IsLicenseUsable && e.Item.ID is not ("License" or "About"))
+            if (!IsLicenseUsable && e.Item.ID is not ("License" or "About" or "Logs"))
             {
                 await ShowLicenseAsync();
                 SetStatus("需要有效授权，监听功能已锁定。");
@@ -218,6 +224,9 @@ public sealed class MainForm : Form
                     break;
                 case "Updates":
                     await ShowUpdatesAsync();
+                    break;
+                case "Logs":
+                    ShowLogs();
                     break;
                 case "About":
                     ShowAbout();
@@ -277,6 +286,7 @@ public sealed class MainForm : Form
         }
 
         _licenseValidation = await _licenseService.ValidateAsync(_machineCode, forceRemoteCheck);
+        AppLogger.Info($"授权校验完成。usable={IsLicenseUsable}, status={_licenseValidation.Status}, message={_licenseValidation.Message}");
         if (!IsLicenseUsable)
         {
             _monitoringEnabled = false;
@@ -651,10 +661,55 @@ public sealed class MainForm : Form
         _content.Controls.Add(Card("关于软件", about));
     }
 
+    private void ShowLogs()
+    {
+        SetPage("运行日志");
+        _logOutput = new AntInput
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            Font = new Font("Consolas", 10F),
+            WordWrap = false,
+            Radius = 6,
+            Text = AppLogger.ReadRecent()
+        };
+
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, BackColor = Color.White };
+        var refresh = Button("刷新", 90);
+        var clear = Button("清空日志", 110);
+        var open = Button("打开目录", 110);
+        refresh.Click += (_, _) => _logOutput.Text = AppLogger.ReadRecent();
+        clear.Click += (_, _) =>
+        {
+            AppLogger.Clear();
+            AppLogger.Info("日志已由界面清空。");
+            _logOutput.Text = AppLogger.ReadRecent();
+            SetStatus("日志已清空。");
+        };
+        open.Click += (_, _) =>
+        {
+            Directory.CreateDirectory(AppPaths.LogDirectory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = AppPaths.LogDirectory,
+                UseShellExecute = true
+            });
+        };
+        actions.Controls.Add(refresh);
+        actions.Controls.Add(clear);
+        actions.Controls.Add(open);
+
+        var card = Card($"运行日志：{AppLogger.LogPath}", _logOutput);
+        card.Controls.Add(actions);
+        _content.Controls.Add(card);
+    }
+
     private async Task MonitorTickAsync()
     {
         if (!IsLicenseUsable)
         {
+            AppLogger.Debug("监听轮询跳过：授权不可用。");
             return;
         }
 
@@ -666,11 +721,13 @@ public sealed class MainForm : Form
         if (!IsLicenseUsable)
         {
             SetStatus("需要有效授权，窗口监听已锁定。");
+            AppLogger.Warning("窗口标题扫描跳过：授权不可用。");
             return;
         }
 
         if (!_monitoringEnabled && !force)
         {
+            AppLogger.Debug("窗口标题扫描跳过：监听已暂停。");
             return;
         }
 
@@ -682,12 +739,14 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             SetStatus($"窗口扫描失败：{ex.Message}");
+            AppLogger.Error("窗口标题扫描失败。", ex);
             return;
         }
 
         var rules = (_rules.Count == 0 ? await _repository.GetRulesAsync() : _rules)
             .Where(rule => rule.RuleType == MonitorRuleType.WindowTitle)
             .ToArray();
+        AppLogger.Debug($"窗口标题扫描开始。windows={windows.Count}, rules={rules.Length}, enabledRules={rules.Count(rule => rule.Enabled)}");
         var hitCount = 0;
         var hitRuleIds = new HashSet<Guid>();
         foreach (var window in windows)
@@ -696,6 +755,7 @@ public sealed class MainForm : Form
             foreach (var match in _ruleMatcher.Match(rules, input))
             {
                 hitRuleIds.Add(match.Rule.Id);
+                AppLogger.Info($"窗口标题命中。rule={match.Rule.Name}, keyword={match.Keyword}, process={window.ProcessName}, title={window.Title}");
                 if (await SaveAndNotifyMatchAsync(match))
                 {
                     hitCount++;
@@ -720,11 +780,13 @@ public sealed class MainForm : Form
         if (!IsLicenseUsable)
         {
             SetStatus("需要有效授权，文字识别监听已锁定。");
+            AppLogger.Warning("文字识别扫描跳过：授权不可用。");
             return;
         }
 
         if (!_monitoringEnabled && !force)
         {
+            AppLogger.Debug("文字识别扫描跳过：监听已暂停。");
             return;
         }
 
@@ -744,27 +806,42 @@ public sealed class MainForm : Form
             var rules = (_rules.Count == 0 ? await _repository.GetRulesAsync() : _rules)
                 .Where(rule => rule.Enabled && rule.RuleType == MonitorRuleType.Ocr)
                 .ToArray();
+            AppLogger.Debug($"文字识别扫描开始。rules={rules.Length}, force={force}, showResult={showResult}");
             var hitRuleIds = new HashSet<Guid>();
             foreach (var rule in rules)
             {
                 using var bitmap = await CaptureForOcrRuleAsync(rule);
                 if (bitmap is null)
                 {
+                    AppLogger.Warning($"文字识别规则跳过：截图为空。rule={rule.Name}, target={rule.OcrTargetType}, process={rule.ProcessName}, title={rule.WindowTitlePattern}");
                     continue;
                 }
 
                 using var cropped = CropForRule(bitmap, rule);
                 var ocr = await _ocrEngine.RecognizeAsync(cropped, new OcrOptions("zh-Hans,en"));
+                AppLogger.Debug($"文字识别完成。rule={rule.Name}, textLength={ocr.Text?.Length ?? 0}, durationMs={ocr.Duration.TotalMilliseconds:N0}");
                 if (string.IsNullOrWhiteSpace(ocr.Text))
                 {
                     continue;
                 }
 
                 var source = rule.OcrTargetType == OcrTargetType.Desktop ? "桌面" : rule.ProcessName ?? "窗口";
-                var input = new MonitorInput(MonitorContentType.OcrText, ocr.Text, null, source, DateTimeOffset.Now);
+                var window = rule.OcrTargetType == OcrTargetType.Window
+                    ? new WindowSnapshot(
+                        IntPtr.Zero,
+                        rule.WindowTitlePattern ?? source,
+                        string.Empty,
+                        0,
+                        rule.ProcessName ?? source,
+                        Rectangle.Empty,
+                        true,
+                        DateTimeOffset.Now)
+                    : null;
+                var input = new MonitorInput(MonitorContentType.OcrText, ocr.Text, window, source, DateTimeOffset.Now);
                 foreach (var match in _ruleMatcher.Match([rule], input))
                 {
                     hitRuleIds.Add(match.Rule.Id);
+                    AppLogger.Info($"文字识别命中。rule={match.Rule.Name}, keyword={match.Keyword}, source={source}");
                     if (await SaveAndNotifyMatchAsync(match)) hits++;
                 }
             }
@@ -775,6 +852,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             SetStatus($"文字识别失败：{ex.Message}");
+            AppLogger.Error("文字识别扫描失败。", ex);
             if (showResult && _ocrOutput is not null)
             {
                 _ocrOutput.Text = $"文字识别失败：{ex.Message}";
@@ -786,17 +864,20 @@ public sealed class MainForm : Form
     {
         if (!IsLicenseUsable)
         {
+            AppLogger.Warning($"命中处理跳过：授权不可用。rule={match.Rule.Name}");
             return false;
         }
 
         var pending = MonitorEventFactory.FromMatch(match, NotificationStatus.Pending);
         if (_cooldown.Evaluate(pending, match.Rule.CooldownSeconds) == NotificationStatus.CooldownSkipped)
         {
+            AppLogger.Debug($"命中跳过：冷却中。rule={match.Rule.Name}, keyword={match.Keyword}");
             return false;
         }
 
         if (!CanSendForConsecutiveHit(match.Rule, pending.OccurredAt))
         {
+            AppLogger.Debug($"命中跳过：连续发送上限。rule={match.Rule.Name}, limit={match.Rule.MaxConsecutiveNotifications}");
             return false;
         }
 
@@ -805,6 +886,7 @@ public sealed class MainForm : Form
         {
             NotificationStatus = notificationSent ? NotificationStatus.Sent : NotificationStatus.Failed
         });
+        AppLogger.Info($"命中事件已记录。rule={match.Rule.Name}, keyword={match.Keyword}, notificationSent={notificationSent}");
         return true;
     }
 
@@ -817,11 +899,13 @@ public sealed class MainForm : Form
             try
             {
                 _notifyIcon.ShowBalloonTip(3000, $"规则命中：{monitorEvent.RuleName}", message, ToolTipIcon.Info);
+                AppLogger.Info($"系统通知已发送。rule={monitorEvent.RuleName}");
             }
             catch (Exception ex)
             {
                 ok = false;
                 SetStatus($"系统通知发送失败：{ex.Message}");
+                AppLogger.Error($"系统通知发送失败。rule={monitorEvent.RuleName}", ex);
             }
         }
 
@@ -846,11 +930,13 @@ public sealed class MainForm : Form
 
                 using var response = await _httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();
+                AppLogger.Info($"网络回调已发送。rule={monitorEvent.RuleName}, status={(int)response.StatusCode}");
             }
             catch (Exception ex)
             {
                 ok = false;
                 SetStatus($"网络回调发送失败：{ex.Message}");
+                AppLogger.Error($"网络回调发送失败。rule={monitorEvent.RuleName}, url={rule.WebhookUrl}", ex);
             }
         }
 
@@ -861,8 +947,11 @@ public sealed class MainForm : Form
     {
         if (!IsLicenseUsable)
         {
+            AppLogger.Debug("任务栏闪烁事件跳过：授权不可用。");
             return;
         }
+
+        AppLogger.Info($"收到任务栏闪烁事件。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}, method={flashEvent.DetectionMethod}");
 
         var rules = _rules
             .Where(rule =>
@@ -874,6 +963,7 @@ public sealed class MainForm : Form
 
         if (rules.Length == 0)
         {
+            AppLogger.Debug($"任务栏闪烁未匹配规则。process={flashEvent.ProcessName}, title={flashEvent.WindowTitle}");
             return;
         }
 
@@ -893,12 +983,14 @@ public sealed class MainForm : Form
             };
             if (_cooldown.Evaluate(pending, rule.CooldownSeconds) == NotificationStatus.CooldownSkipped)
             {
+                AppLogger.Debug($"任务栏闪烁跳过：冷却中。rule={rule.Name}");
                 continue;
             }
 
             ResetQuietFlashRule(rule, flashEvent.OccurredAt);
             if (!CanSendForConsecutiveHit(rule, pending.OccurredAt))
             {
+                AppLogger.Debug($"任务栏闪烁跳过：连续发送上限。rule={rule.Name}, limit={rule.MaxConsecutiveNotifications}");
                 continue;
             }
 
@@ -907,6 +999,7 @@ public sealed class MainForm : Form
             {
                 NotificationStatus = notificationSent ? NotificationStatus.Sent : NotificationStatus.Failed
             });
+            AppLogger.Info($"任务栏闪烁事件已记录。rule={rule.Name}, notificationSent={notificationSent}");
         }
 
         SetStatus($"检测到任务栏闪烁：{flashEvent.ProcessName}");
@@ -915,6 +1008,7 @@ public sealed class MainForm : Form
     private async Task LoadRulesAsync()
     {
         _rules = await _repository.GetRulesAsync();
+        AppLogger.Info($"规则已加载。total={_rules.Count}, enabled={_rules.Count(rule => rule.Enabled)}, title={_rules.Count(rule => rule.RuleType == MonitorRuleType.WindowTitle)}, ocr={_rules.Count(rule => rule.RuleType == MonitorRuleType.Ocr)}, flash={_rules.Count(rule => rule.RuleType == MonitorRuleType.TaskbarFlash)}");
     }
 
     private void StartConfiguredTaskbarRules()
@@ -922,6 +1016,7 @@ public sealed class MainForm : Form
         if (!IsLicenseUsable)
         {
             _taskbarFlashDetector.Stop();
+            AppLogger.Warning("任务栏闪烁监听未启动：授权不可用。");
             return;
         }
 
@@ -932,10 +1027,12 @@ public sealed class MainForm : Form
         if (targets.Length > 0)
         {
             _taskbarFlashDetector.Start(targets);
+            AppLogger.Info($"任务栏闪烁监听已启动。targets={targets.Length}, processes={string.Join(", ", targets.Select(target => target.ProcessName))}");
             return;
         }
 
         _taskbarFlashDetector.Stop();
+        AppLogger.Info("任务栏闪烁监听已停止：没有启用的目标。");
     }
 
     private void FillRulesGrid()
@@ -1084,7 +1181,8 @@ public sealed class MainForm : Form
         using var form = new RuleEditorForm(rule, _windowInventory.GetVisibleWindows(), _captureService);
         if (form.ShowDialog(this) == DialogResult.OK)
         {
-            await _repository.SaveRuleAsync(form.Rule);
+        await _repository.SaveRuleAsync(form.Rule);
+            AppLogger.Info($"规则已保存。rule={form.Rule.Name}, type={form.Rule.RuleType}, enabled={form.Rule.Enabled}, keywords={string.Join("|", form.Rule.Keywords)}, channels={string.Join("|", form.Rule.NotificationChannels)}");
             SelectRule(form.Rule);
             await LoadRulesAsync();
             StartConfiguredTaskbarRules();

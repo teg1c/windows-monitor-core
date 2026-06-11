@@ -213,6 +213,14 @@ teg1c/windows-monitor-release
 .\build.ps1 -Version 0.1.0 -SelfContained
 ```
 
+诊断构建，显示软件内“日志”页面：
+
+```powershell
+.\build.ps1 -Version 0.1.0 -EnableLogTab
+```
+
+默认构建不会显示“日志”页面，但本地日志仍会写入 `C:\ProgramData\WindowsMonitor\logs\app.log`，单个日志文件最大 20MB。
+
 构建产物会输出到 `dist`：
 
 ```text

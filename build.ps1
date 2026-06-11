@@ -10,6 +10,8 @@ param(
 
     [string]$LicenseCryptoKeyBase64 = "MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=",
 
+    [switch]$EnableLogTab,
+
     [switch]$SelfContained,
 
     [switch]$SkipTests,
@@ -56,6 +58,7 @@ Write-Host "Configuration: $Configuration"
 Write-Host "Runtime:       $Runtime"
 Write-Host "Version:       $tagName"
 Write-Host "License URL:   $(if ([string]::IsNullOrWhiteSpace($LicenseValidationUrl)) { '(not configured)' } else { $LicenseValidationUrl })"
+Write-Host "Log tab:       $([bool]$EnableLogTab)"
 Write-Host "SelfContained: $([bool]$SelfContained)"
 Write-Host "Output:        $publishDir"
 
@@ -101,6 +104,7 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($LicenseCryptoKeyBase64)) {
         $publishCommonArgs += "/p:LicenseCryptoKeyBase64=$LicenseCryptoKeyBase64"
     }
+    $publishCommonArgs += "/p:EnableLogTab=$([bool]$EnableLogTab)"
 
     Invoke-DotNet -Arguments (@("publish", $appProject, "-o", $publishDir) + $publishCommonArgs)
     Invoke-DotNet -Arguments (@("publish", $updaterProject, "-o", $updaterDir) + $publishCommonArgs)
