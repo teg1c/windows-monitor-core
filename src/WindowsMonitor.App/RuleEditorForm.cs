@@ -315,6 +315,12 @@ public sealed class RuleEditorForm : Form
             return;
         }
 
+        if (_webhook.Checked && !IsValidWebhookUrl(_webhookUrl.Text))
+        {
+            MessageBox.Show(this, "回调地址必须是完整的 http 或 https 地址。", "规则校验", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
         if (_webhook.Checked && !IsValidJsonObject(_webhookHeadersJson.Text))
         {
             MessageBox.Show(this, "回调请求头必须是 JSON 对象，例如：{\"Authorization\":\"Bearer token\"}。", "规则校验", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -504,5 +510,11 @@ public sealed class RuleEditorForm : Form
     private static string NormalizeJsonObject(string text)
     {
         return string.IsNullOrWhiteSpace(text) ? "{}" : text.Trim();
+    }
+
+    private static bool IsValidWebhookUrl(string text)
+    {
+        return Uri.TryCreate(text.Trim(), UriKind.Absolute, out var uri) &&
+               uri.Scheme is "http" or "https";
     }
 }

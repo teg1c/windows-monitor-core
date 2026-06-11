@@ -770,18 +770,29 @@ public sealed class MainForm : Form
             return false;
         }
 
-        var sent = pending with { NotificationStatus = NotificationStatus.Sent };
-        await _repository.AddEventAsync(sent);
-        await SendNotificationsAsync(sent, match.Rule);
+        var notificationSent = await SendNotificationsAsync(pending, match.Rule);
+        await _repository.AddEventAsync(pending with
+        {
+            NotificationStatus = notificationSent ? NotificationStatus.Sent : NotificationStatus.Failed
+        });
         return true;
     }
 
-    private async Task SendNotificationsAsync(MonitorEvent monitorEvent, MonitorRule rule)
+    private async Task<bool> SendNotificationsAsync(MonitorEvent monitorEvent, MonitorRule rule)
     {
+        var ok = true;
         var message = RenderMessage(rule.WindowsToastMessageTemplate, monitorEvent);
         if (rule.NotificationChannels.Contains(NotificationChannel.WindowsToast))
         {
-            _notifyIcon.ShowBalloonTip(3000, $"规则命中：{monitorEvent.RuleName}", message, ToolTipIcon.Info);
+            try
+            {
+                _notifyIcon.ShowBalloonTip(3000, $"规则命中：{monitorEvent.RuleName}", message, ToolTipIcon.Info);
+            }
+            catch (Exception ex)
+            {
+                ok = false;
+                SetStatus($"系统通知发送失败：{ex.Message}");
+            }
         }
 
         if (rule.NotificationChannels.Contains(NotificationChannel.Webhook) && !string.IsNullOrWhiteSpace(rule.WebhookUrl))
@@ -808,9 +819,12 @@ public sealed class MainForm : Form
             }
             catch (Exception ex)
             {
+                ok = false;
                 SetStatus($"网络回调发送失败：{ex.Message}");
             }
         }
+
+        return ok;
     }
 
     private async void OnTaskbarFlashDetected(object? sender, TaskbarFlashEvent flashEvent)
@@ -858,9 +872,11 @@ public sealed class MainForm : Form
                 continue;
             }
 
-            var sent = pending with { NotificationStatus = NotificationStatus.Sent };
-            await _repository.AddEventAsync(sent);
-            await SendNotificationsAsync(sent, rule);
+            var notificationSent = await SendNotificationsAsync(pending, rule);
+            await _repository.AddEventAsync(pending with
+            {
+                NotificationStatus = notificationSent ? NotificationStatus.Sent : NotificationStatus.Failed
+            });
         }
 
         SetStatus($"检测到任务栏闪烁：{flashEvent.ProcessName}");
@@ -1014,6 +1030,7 @@ public sealed class MainForm : Form
         if (form.ShowDialog(this) == DialogResult.OK)
         {
             await _repository.SaveRuleAsync(form.Rule);
+            SelectRule(form.Rule);
             await LoadRulesAsync();
             StartConfiguredTaskbarRules();
             FillRulesGrid();
