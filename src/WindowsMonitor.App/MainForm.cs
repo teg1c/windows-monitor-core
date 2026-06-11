@@ -50,8 +50,6 @@ public sealed class MainForm : Form
     private DataGridView? _windowsGrid;
     private DataGridView? _flashGrid;
     private AntInput? _ocrOutput;
-    private AntInput? _githubOwner;
-    private AntInput? _githubRepo;
     private AntInput? _updateOutput;
     private AntInput? _licenseOutput;
     private AntInput? _licenseCodeInput;
@@ -564,33 +562,34 @@ public sealed class MainForm : Form
     private async Task ShowUpdatesAsync()
     {
         SetPage("软件更新");
-        _githubOwner = new AntInput { Width = 180, PlaceholderText = "所有者", Radius = 6 };
-        _githubRepo = new AntInput { Width = 220, PlaceholderText = "仓库", Radius = 6 };
-        var owner = await _repository.GetSettingAsync(SettingsKeys.GitHubOwner);
-        var repo = await _repository.GetSettingAsync(SettingsKeys.GitHubRepository);
-        _githubOwner.Text = string.IsNullOrWhiteSpace(owner) ? SettingsKeys.DefaultGitHubOwner : owner;
-        _githubRepo.Text = string.IsNullOrWhiteSpace(repo) ? SettingsKeys.DefaultGitHubRepository : repo;
+        _ = await GetUpdateRepositoryAsync();
         _updateOutput = new AntInput
         {
             Dock = DockStyle.Fill,
             Multiline = true,
             ReadOnly = true,
+            Font = new Font("Segoe UI", 12F),
             Radius = 6,
-            Text = $"当前版本：{CurrentVersionText()}{Environment.NewLine}更新源：{_githubOwner.Text}/{_githubRepo.Text}{Environment.NewLine}{Environment.NewLine}点击“检测最新版本”获取最新版本信息。"
+            Text = UpdateVersionText("未检测")
         };
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.White };
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, Height = 48, BackColor = Color.White };
         var check = Button("检测最新版本", 125);
-        var download = Button("下载最新版本", 125);
         check.Click += async (_, _) => await CheckUpdatesAsync();
-        download.Click += async (_, _) => await DownloadUpdateAsync();
-        actions.Controls.Add(new Label { Text = "所有者", AutoSize = true, Padding = new Padding(0, 8, 4, 0) });
-        actions.Controls.Add(_githubOwner);
-        actions.Controls.Add(new Label { Text = "仓库", AutoSize = true, Padding = new Padding(8, 8, 4, 0) });
-        actions.Controls.Add(_githubRepo);
         actions.Controls.Add(check);
-        actions.Controls.Add(download);
-        var card = Card("GitHub 发布版本", _updateOutput);
-        card.Controls.Add(actions);
+
+        var body = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            ColumnCount = 1,
+            RowCount = 2
+        };
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        body.Controls.Add(actions, 0, 0);
+        body.Controls.Add(_updateOutput, 0, 1);
+
+        var card = Card("版本信息", body);
         _content.Controls.Add(card);
     }
 
@@ -1270,60 +1269,37 @@ public sealed class MainForm : Form
 
     private async Task CheckUpdatesAsync()
     {
-        if (_updateOutput is null || _githubOwner is null || _githubRepo is null) return;
-        await SaveUpdateSettingsAsync();
+        if (_updateOutput is null) return;
         try
         {
-            _updateOutput.Text = "正在检测更新...";
-            var release = await _updateService.GetLatestReleaseAsync(_githubOwner.Text.Trim(), _githubRepo.Text.Trim());
+            _updateOutput.Text = UpdateVersionText("正在检测...");
+            var (owner, repo) = await GetUpdateRepositoryAsync();
+            var release = await _updateService.GetLatestReleaseAsync(owner, repo);
             if (release is null)
             {
-                _updateOutput.Text = "没有获取到发布版本信息。";
+                _updateOutput.Text = UpdateVersionText("获取失败");
                 return;
             }
 
-            var zip = release.Assets.FirstOrDefault(asset => asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
             var currentVersion = CurrentVersionText();
             var latestVersion = NormalizeVersionToken(release.TagName);
-            var status = IsNewerVersion(latestVersion, currentVersion)
-                ? "发现新版本。"
-                : "已是最新版本。";
-            _updateOutput.Text =
-                $"状态：{status}{Environment.NewLine}" +
-                $"当前版本：{currentVersion}{Environment.NewLine}" +
-                $"最新版本：{release.TagName}{Environment.NewLine}" +
-                $"名称：{release.Name}{Environment.NewLine}" +
-                $"发布时间：{release.PublishedAt:yyyy-MM-dd HH:mm}{Environment.NewLine}" +
-                $"更新包：{zip?.Name ?? "（没有 zip 资源）"}{Environment.NewLine}" +
-                $"仓库：{_githubOwner.Text.Trim()}/{_githubRepo.Text.Trim()}{Environment.NewLine}{Environment.NewLine}" +
-                release.Body;
+            _updateOutput.Text = UpdateVersionText(release.TagName);
+            SetStatus(IsNewerVersion(latestVersion, currentVersion) ? "发现新版本。" : "已是最新版本。");
         }
         catch (Exception ex)
         {
-            _updateOutput.Text = $"检测更新失败：{ex.Message}";
+            _updateOutput.Text = UpdateVersionText("检测失败");
+            SetStatus($"检测更新失败：{ex.Message}");
         }
     }
 
-    private async Task DownloadUpdateAsync()
+    private async Task<(string Owner, string Repository)> GetUpdateRepositoryAsync()
     {
-        if (_updateOutput is null || _githubOwner is null || _githubRepo is null) return;
-        await SaveUpdateSettingsAsync();
-        try
-        {
-            _updateOutput.Text = "正在下载更新包...";
-            var package = await _updateService.DownloadLatestPackageAsync(_githubOwner.Text.Trim(), _githubRepo.Text.Trim(), AppPaths.UpdateDirectory);
-            _updateOutput.Text = $"已下载：{package.PackagePath}{Environment.NewLine}版本：{package.Version}{Environment.NewLine}SHA-256：{package.Sha256}{Environment.NewLine}SHA 文件校验：{BoolText(package.Sha256Verified)}";
-        }
-        catch (Exception ex)
-        {
-            _updateOutput.Text = $"下载失败：{ex.Message}";
-        }
-    }
-
-    private async Task SaveUpdateSettingsAsync()
-    {
-        await _repository.SaveSettingAsync(SettingsKeys.GitHubOwner, _githubOwner?.Text.Trim() ?? "");
-        await _repository.SaveSettingAsync(SettingsKeys.GitHubRepository, _githubRepo?.Text.Trim() ?? "");
+        var owner = await _repository.GetSettingAsync(SettingsKeys.GitHubOwner);
+        var repo = await _repository.GetSettingAsync(SettingsKeys.GitHubRepository);
+        return (
+            string.IsNullOrWhiteSpace(owner) ? SettingsKeys.DefaultGitHubOwner : owner.Trim(),
+            string.IsNullOrWhiteSpace(repo) ? SettingsKeys.DefaultGitHubRepository : repo.Trim());
     }
 
     private static string CurrentVersionText()
@@ -1334,6 +1310,11 @@ public sealed class MainForm : Form
             ? assembly.GetName().Version?.ToString()
             : informational;
         return NormalizeVersionToken(version ?? "0.0.0");
+    }
+
+    private static string UpdateVersionText(string latestVersion)
+    {
+        return $"当前版本：{CurrentVersionText()}{Environment.NewLine}最新版本：{latestVersion}";
     }
 
     private static string NormalizeVersionToken(string version)
